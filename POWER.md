@@ -73,7 +73,7 @@ The `project-scanner` MCP server provides:
 
 Both `new-ticket` and `close-ticket` call this tool at the start of their workflow instead of guessing at project conventions.
 
-**Note:** the [`gitlab-mr-review`](../gitlab-mr-review) power's `mr-comments` skill also calls this tool when it's installed, for the same reason — but it's a separate power, since working through an existing MR's review comments isn't a Jira-ticket-specific task.
+**Note:** the [`gitlab-mr-review`](https://github.com/yf-tools/gitlab-mr-review) power's `mr-comments` skill also calls this tool when it's installed, for the same reason — but it's a separate power, since working through an existing MR's review comments isn't a Jira-ticket-specific task.
 
 ## Best Practices
 

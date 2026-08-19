@@ -163,9 +163,9 @@ A bare key or URL means "start working on this ticket" and triggers the
 MR".
 
 To work through review feedback on an MR that already exists, install the
-separate [`gitlab-mr-review`](../gitlab-mr-review) power — that's a distinct
-task from the Jira ticket lifecycle this power covers, so it isn't bundled
-here.
+separate [`gitlab-mr-review`](https://github.com/yf-tools/gitlab-mr-review)
+power — that's a distinct task from the Jira ticket lifecycle this power
+covers, so it isn't bundled here.
 
 **After changing anything under `server/`, reconnect `project-scanner`.** The
 running process keeps serving the old code otherwise, including the old tool
