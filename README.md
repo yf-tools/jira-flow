@@ -24,6 +24,13 @@ sits underneath.
 For what each step does, see [POWER.md](POWER.md). For known gaps, see
 [TODO.md](TODO.md).
 
+This power is packaged to the [Agent Plugins](https://agent-plugins.org/) 1.0
+standard (`plugin.json` + `skills/` + `mcp.json`) rather than anything
+Kiro-specific. Kiro is what this was built and tested against, but the same
+package format is also read natively by VS Code / GitHub Copilot. Support in
+other clients isn't verified here — check what a given client actually
+supports before assuming it'll load.
+
 ## Requirements
 
 | Requirement         | Needed for                                        | Notes                                                                                                         |
@@ -40,16 +47,27 @@ to your own configuration — reasoning under Setup.
 
 ## Install
 
-Place the power directory at:
+**From a GitHub URL** (Kiro's Powers panel → **Add power from GitHub** →
+paste the repository URL). For a private repo, whoever you paste it as needs
+read access — see the repo's own access settings.
 
-```text
-~/.kiro/powers/jira-ticket-workflow/
+**From a local checkout** — this also works for a private repo you don't
+have push access to, once someone's given you read and you've cloned it:
+
+```bash
+git clone <repository-url>
 ```
 
-On Windows that's `C:\Users\<you>\.kiro\powers\jira-ticket-workflow\`.
+Then in Kiro: Powers panel → **Add power from Local Path** → select the
+cloned directory.
 
-Reconnect from the **MCP Servers** view in the Kiro feature panel. One entry
-should appear:
+**Do not develop against `~/.kiro/powers/<name>/` directly.** That path is
+Kiro's managed slot for the *installed* copy, and it can be overwritten by
+Kiro's own install/sync process — clone and edit this repo somewhere else
+(e.g. `~/dev/`), then install from that path or from GitHub.
+
+Either way, reconnect from the **MCP Servers** view in the Kiro feature panel.
+One entry should appear:
 
 - `power-jira-ticket-workflow-project-scanner` (1 tool)
 
