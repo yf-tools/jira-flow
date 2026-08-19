@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "jira-ticket-workflow",
+  "version": "1.3.0",
+  "description": "ACTIVATE THIS POWER whenever the user's message contains a Jira ticket key ({PREFIX}-{NUMBER}, e.g. ABC-1234) or an Atlassian issue URL (https://<site>.atlassian.net/browse/KEY-123) -- including when the message is nothing but that key or URL with no other text, which means 'start working on this ticket'. Also activate on 'start ticket', 'new ticket', 'close ticket', 'wrap up', 'done with this ticket', 'create an MR/PR'. Provides the end-to-end Jira ticket workflow: starting a ticket (branch setup, scope, navigation guide, time estimate), closing a ticket (pre-push checks, commit, push, MR/PR, Jira transition, worklog), and a project scanner that auto-detects tooling across ten language ecosystems so the workflow adapts to any project.",
+  "author": {
+    "name": "Youssef Fathallah"
+  },
+  "license": "MIT",
+  "keywords": [
+    "jira",
+    "ticket",
+    "atlassian",
+    "branch",
+    "merge-request",
+    "pull-request",
+    "workflow",
+    "project-scanner",
+    "atlassian.net",
+    "browse",
+    "jira-url",
+    "issue-link",
+    "ticket-key",
+    "start-ticket",
+    "close-ticket",
+    "wrap-up-ticket",
+    "/browse/",
+    "jira-link",
+    "jira-ticket"
+  ]
+}
