@@ -133,6 +133,15 @@ commits; that's Step 3, and it only runs once the user has approved what's stage
 Apply the project's own review conventions **against the actual diff** (not from
 memory) after running the built-in checks below.
 
+**If `new-ticket` already ran this search earlier in the same session, don't
+repeat the discovery step.** Reuse what it found (or didn't) rather than
+re-searching and potentially re-applying the same checklist twice. It's still
+worth re-checking only if the diff has grown since then — new files or a
+follow-up fix the checklist never saw. If nothing changed since, just carry
+the earlier result into the Step 2.3 line below. When `close-ticket` is invoked
+fresh (a new session, or the user skipped straight to it without `new-ticket`),
+run the search here as normal — this is the only place it happens for that path.
+
 **Start with the scanner, then fall back to judging by description.**
 `reviewChecklist.checklistContent` from Step 0 is the fast path — when it's
 non-null, the scanner already found and inlined a checklist, so use it directly.
