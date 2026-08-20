@@ -173,7 +173,16 @@ which is exactly the case this fallback exists for.
 
 If the checklist catches something: fix it inline (same as a lint fix) and mention
 it in the Step 2.3 staged review as "caught by project checklist" so the user
-knows it fired. This pass is silent when it finds nothing.
+knows it fired.
+
+**This search always produces a visible line in Step 2.3 — never skip reporting
+it, even when nothing was found.** A silent pass is indistinguishable from a
+skipped one; the user has no way to tell "I looked and there's nothing" from
+"I forgot to look." State the outcome as one of:
+
+- Found and applied: `Ran {name} against the diff — caught {what}, fixed.`
+- Found and declined: `Found {name} — you said skip it.`
+- Looked, nothing found: `Checked {where you looked} for a review checklist — nothing found.`
 
 ### 2.1 — Local-only config changes
 
@@ -233,6 +242,13 @@ git diff {git.integrationBranch}...HEAD --stat   # anything already committed on
 ```
 
 Then list the staged files plainly, say what each change does, and explicitly name anything you left unstaged and why — an omission is as much a decision as an inclusion, and it's the harder one for the user to spot.
+
+**Always include a review-checklist line in this presentation — this is not optional and not conditional on finding something.** One of:
+
+- `Review checklist: found {name}, {applied it / you declined}. {what it caught, if anything}`
+- `Review checklist: checked {where}, nothing found describing itself as a review/pre-push check.`
+
+If this line is missing from what you show the user, Step 2.3 is incomplete — go back and do the search from "Project review checklist" above before presenting.
 
 **🛑 Wait for the user's reply before Step 3.** Don't present this and commit in the same turn.
 
@@ -793,7 +809,7 @@ skim past, a short list of labeled facts isn't.
 | 1. Verify branch | **Branch's ticket key ≠ the key the user named → stop**, you can't tell which is wrong. Then state the branch; ask only if it's wrong, a different prefix, or detached. Handle work already committed outside this skill |
 | 2.1 Local-only config | Show the diff, get per-file confirmation before discarding anything |
 | 2.2 Leftovers | Unstaged files, local tooling, specs to include, debug leftovers, anything secret-shaped |
-| 2. Checklist | Scanner's `checklistContent` first; if empty, judge candidates by their **description**, not filename. Found one → name it and offer it in 2.3, don't apply silently |
+| 2. Checklist | Scanner's `checklistContent` first; if empty, judge candidates by their **description**, not filename. Found one → name it and offer it in 2.3, don't apply silently. **Always report the outcome as a line in 2.3, even "nothing found" — never silent** |
 | 2.3 Stage → review | **Stage first, format, then show `git diff --cached`.** 🛑 Wait for the user before Step 3 |
 | 3. Commit | Show the message, wait, then commit per `commitConvention.suggestedFormat`. Terminal git, not MCP tools |
 | 4. Push | Check `prePushContent`; if it runs a full build, let the user pick. `git push -u origin {branch}` |

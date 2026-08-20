@@ -604,9 +604,13 @@ workflow failing to do its own job.
    memory of what you changed. Only the items relevant to the files you
    touched. Fix anything it catches inline, same as a lint fix, and mention
    what it caught when you report back.
-4. **If nothing describes itself that way**, skip silently and use the plain
-   wrap-up question from Step 10 — don't manufacture a checklist offer where
-   none exists.
+4. **If nothing describes itself that way, say so — don't skip silently.** Fold
+   a one-line "checked {where you looked}, nothing found describing itself as a
+   review checklist" into the same wrap-up message from Step 10, then ask the
+   plain wrap-up question. A search that finds nothing and says nothing is
+   indistinguishable, from the user's side, from a search that never ran —
+   don't manufacture a checklist offer where none exists, but always report
+   that you looked.
 
 This runs once, here, before Step 10's question — not repeated if the user asks
 for another round of changes later in the same ticket.
