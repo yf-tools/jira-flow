@@ -7,6 +7,29 @@ description: Ticket closing workflow — final checks, commit, push, and MR/PR c
 
 When the user says they're done with a ticket or wants to close/wrap up, follow this workflow.
 
+**Skip filler acknowledgments before a tool call.** "Now let me check for an existing MR," "Let me stage the files," "Let's run the formatter" — the tool call itself already shows progress; a sentence announcing it first adds nothing. Speak when you have something to report (a finding, a decision, a question), not before every action leading up to it.
+
+## Mistakes a user can hand you — check for these before acting
+
+Closing writes to shared state: a commit, a push, an MR other people get notified about, a ticket transition the board reflects. A wrong ticket key or a wrong branch here is more expensive than in `new-ticket`, because most of it can't be quietly undone.
+
+Each case says whether to **stop** (wait for an answer) or **flag** (say it and continue).
+
+| What's wrong | Where | Do this |
+| --- | --- | --- |
+| URL isn't an Atlassian issue link, or key isn't `{PREFIX}-{NUMBER}` | Step 0 | 🛑 **Stop** — don't guess a key |
+| Ticket doesn't exist (404) or you can't access it | Step 0 | 🛑 **Stop** |
+| Ticket key from the branch ≠ the ticket the user named | Step 1 | 🛑 **Stop** — one of the two is wrong, and you can't tell which |
+| Ticket is assigned to someone else | Step 0 | ⚠️ **Flag** — you're about to comment and transition it |
+| Ticket is already `Done` / `Merged` / `Closed` | Step 0, re-checked at Step 6 | 🛑 **Stop** — don't re-transition finished work |
+| On the integration branch, or another ticket's branch | Step 1 | 🛑 **Stop** |
+| Different project prefix on the branch | Step 1 | 🛑 **Stop** — usually the wrong repo |
+| Detached HEAD | Step 1 | 🛑 **Stop** |
+| Nothing to commit (clean tree, no unpushed commits) | Steps 2–3 | ⚠️ **Flag** — say there's nothing to close and ask what they expected |
+| An MR already exists for this branch | Step 5 | ⚠️ **Flag** — update it, don't open a second |
+
+The 🛑 cases in Steps 0–1 must be settled **before** Step 2 stages anything. After that point every step already has its own gate, so fold the rest into those rather than adding pauses.
+
 ## Step 0 — Scan the Project and Resolve Jira Context (ALWAYS FIRST)
 
 Call the `get_project_profile` MCP tool (from the `project-scanner` server bundled with this power) with the workspace root path. **Everything project-specific below comes from this scan.**
@@ -22,6 +45,14 @@ Every Atlassian tool call takes a required `cloudId`, and **Step 5 needs it too*
 3. The ticket key itself normally comes from `git.currentBranchTicketKey` in the scan — no need to ask if the branch already embeds it.
 
 Keep the resolved `cloudId` and the ticket's browse URL for use in Steps 5, 6 and 7.
+
+**If the user gave a URL or key, check it's actually an Atlassian issue reference first** — shape `https://{site}.atlassian.net/browse/{PREFIX}-{NUMBER}`, or a bare `{PREFIX}-{NUMBER}`. A board view, filter, Confluence page, or a key-shaped string that isn't a ticket (`UTF-8`, `HTTP-404`) is not something to extract a key from. 🛑 Stop and ask rather than acting on a partial match.
+
+**Then read the ticket and check it's yours to close.** You're about to comment on it and move it on the board, so it's worth one `getJiraIssue` call plus one `atlassianUserInfo`:
+
+- **Read failed (404 / permission)** — 🛑 **Stop.** Wrong key or wrong site. Don't retry with a guessed variant; say what you tried and ask.
+- **Assigned to someone else** — ⚠️ **Flag it.** *"`PROJ-420` is assigned to {name}, not you — I'm about to comment and transition it. Flagging in case that's not the ticket you meant."* Continue unless they correct you.
+- **Already in a `done` category** (`Done`, `Merged`, `Closed`) — 🛑 **Stop** before Step 6 tries to transition it again. Say so and ask whether the work should go somewhere else, or whether this is the wrong ticket.
 
 The fields this workflow depends on:
 
@@ -69,7 +100,15 @@ because a commit already happened.
 
 ### Branch identity
 
-Compare `git.currentBranch` against the ticket being closed:
+**If the user named a ticket AND the branch embeds a different one, stop.** This is the highest-value check in the step, because both values look authoritative and you can't tell which is wrong: they may be on the wrong branch, or they may have typed the wrong key. Either way, guessing picks one and commits real work against it.
+
+> ⚠️ You asked me to close `{USER-KEY}`, but this branch is `{currentBranch}` — ticket `{BRANCH-KEY}`. Which is right: am I on the wrong branch, or is that the wrong ticket key?
+
+Wait for an answer. Don't resolve it by preferring the branch (it might be a leftover checkout) or by preferring what the user typed (it might be a typo) — the point is that the two disagree.
+
+When the user gave no key at all, `git.currentBranchTicketKey` is the only source and there's nothing to cross-check; say which ticket you inferred from the branch so a wrong checkout is still visible.
+
+Then compare `git.currentBranch` against the ticket being closed:
 
 - **On the branch for this ticket** — good, proceed.
 - **On the integration or default branch, or another branch with the SAME project prefix** — warn:
@@ -89,21 +128,48 @@ Compare `git.currentBranch` against the ticket being closed:
 Inspect first (2.1, 2.2 — read-only), then stage and review (2.3). Nothing here
 commits; that's Step 3, and it only runs once the user has approved what's staged.
 
-### Project review checklist (from `reviewChecklist` in Step 0)
+### Project review checklist
 
-When `reviewChecklist.checklistContent` is non-null, the scanner found a review
-checklist in the project's AI-instruction files. Apply it **against the actual diff**
-(not from memory) after running the built-in checks below.
+Apply the project's own review conventions **against the actual diff** (not from
+memory) after running the built-in checks below.
 
-Three-tier degradation — same as `mr-comments`:
+**Start with the scanner, then fall back to judging by description.**
+`reviewChecklist.checklistContent` from Step 0 is the fast path — when it's
+non-null, the scanner already found and inlined a checklist, so use it directly.
+But the scanner matches on filenames and keywords, so it misses anything named
+unexpectedly. When it comes back empty, don't conclude the project has no review
+conventions:
 
-1. `checklistContent` non-null → apply it directly. Only items relevant to the
+1. **`checklistContent` non-null** → apply it directly. Only items relevant to the
    changed files; a 40-item list against a 3-line fix should produce 2–3 checks.
-2. `checklistContent` null but `found` true → instruction files exist but none
-   matched review keywords. Scan `allSources` file names for anything relevant
-   (e.g. `conventions.md`, `standards.md`). If nothing fits, skip.
-3. `found` false → rely on the built-in pass below (2.1 and 2.2 already cover
-   the generic checks).
+2. **`checklistContent` null** → look yourself, and judge candidates by **what they
+   say they do**, not by what they're called. Steering files, skills, and rule files
+   nearly always carry a `description` in frontmatter; read it and decide whether
+   it's about reviewing, verifying, or checking work before it ships. Check
+   `reviewChecklist.allSources` first since the scanner already listed it, then
+   wherever else this project keeps agent-facing instructions — a steering
+   directory, a skills directory, repo-root rule files under whatever name this
+   project uses, `CONTRIBUTING.md`. **These are hints, not a fixed list**: a
+   checklist called `pre-flight.md`, `merge-readiness.md`, or
+   `definition-of-done.md` counts exactly as much as one called `code-review.md`.
+   A file whose description says "how to run the local database" doesn't, however
+   review-ish its filename looks.
+3. **Nothing describes itself that way** → rely on the built-in pass below; 2.1 and
+   2.2 already cover the generic checks.
+
+**When you find something, name it and offer it rather than applying it silently:**
+
+> Found `.kiro/steering/code-review-self.md` — its description says it's a
+> self-review checklist to run before pushing. Want me to check the staged changes
+> against it before we commit?
+
+Fold that offer into the **Step 2.3 staged review**, which is already a blocking
+gate — one decision point for the user instead of two. If they say yes, apply it and
+report what it found; if they decline, note that and move on.
+
+A steering file marked `inclusion: manual` isn't already in your context the way an
+always-included one is — reading it here explicitly is the only way you'll see it,
+which is exactly the case this fallback exists for.
 
 If the checklist catches something: fix it inline (same as a lint fix) and mention
 it in the Step 2.3 staged review as "caught by project checklist" so the user
@@ -638,6 +704,7 @@ the user explicitly asked for that.
 
 1. Call `getTransitionsForJiraIssue` with the `cloudId` from Step 0 to see what's reachable **from the ticket's current status**.
 2. **Already in the review state?** Say so and skip.
+3. **Already in a `done` category** (`Done`, `Merged`, `Closed`, `Rejected`)? Don't transition it — Step 0 should have caught this, but re-check here since the ticket may have moved while you were working. Say where it is and ask what they want, rather than moving finished work backwards or sideways on your own initiative.
 3. **Direct path exists?** Use it.
 4. **No direct path?** Some workflows require an intermediate hop before review becomes reachable. When that's the case:
    - Look through the available transitions for one leading to a status from which the review state is reachable
@@ -696,16 +763,37 @@ The same goes for approving. An approval from the author is meaningless at best 
 
 If the user explicitly asks you to merge, that's their call — but say what will happen first, including whether the MR has any approvals, and let them confirm rather than treating the request as blanket permission.
 
-What to do instead: report the MR URL, the Jira status, the logged time, and stop.
+**What to do instead — report in this shape, not a prose paragraph:**
+
+```
+### {TICKET-KEY} closed
+
+**MR/PR:** {url}
+- Target: `{target-branch}`
+- Reviewer: {name, or "none set"}
+
+**Jira**
+- Status: {new status}
+- Comment: added
+- Time logged: {duration, or "skipped"}
+
+**Left unticked / unverified:** {anything from the MR template you didn't check, or omit this line if everything was covered}
+```
+
+One block per fact, not a run-on sentence — the same rule the triage and summary
+reports in `mr-comments` follow, for the same reason: a wall of text is easy to
+skim past, a short list of labeled facts isn't.
 
 ## Quick Reference
 
 | Step | Action |
 | --- | --- |
 | 0. Scan | `get_project_profile` **fresh** (never reuse an earlier profile — the branch has changed) + resolve `cloudId`, which Step 5 also needs |
-| 1. Verify branch | State the branch; ask only if it's wrong, a different prefix, or detached. Handle work already committed outside this skill |
+| 0. Validate | URL/key actually an Atlassian issue reference? Read failed → **stop**. Assigned to someone else → flag. Already `done` category → **stop** |
+| 1. Verify branch | **Branch's ticket key ≠ the key the user named → stop**, you can't tell which is wrong. Then state the branch; ask only if it's wrong, a different prefix, or detached. Handle work already committed outside this skill |
 | 2.1 Local-only config | Show the diff, get per-file confirmation before discarding anything |
 | 2.2 Leftovers | Unstaged files, local tooling, specs to include, debug leftovers, anything secret-shaped |
+| 2. Checklist | Scanner's `checklistContent` first; if empty, judge candidates by their **description**, not filename. Found one → name it and offer it in 2.3, don't apply silently |
 | 2.3 Stage → review | **Stage first, format, then show `git diff --cached`.** 🛑 Wait for the user before Step 3 |
 | 3. Commit | Show the message, wait, then commit per `commitConvention.suggestedFormat`. Terminal git, not MCP tools |
 | 4. Push | Check `prePushContent`; if it runs a full build, let the user pick. `git push -u origin {branch}` |

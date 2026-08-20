@@ -204,6 +204,12 @@ repository` before reading any parameters, because the glab MCP server has no
 
 What it will and won't do on its own:
 
+- Validates the URL/key is actually an Atlassian issue reference before resolving anything — board views, Confluence pages, filter links, and key-shaped strings that aren't tickets (`UTF-8`, `HTTP-404`) are caught immediately
+- Stops on a 404 or permission error — never retries with a guessed variant of the key
+- Checks the ticket's assignee against you (via `atlassianUserInfo`) — assigned to someone else is flagged as a potential typo, unassigned gets an offer to assign it
+- Stops on a ticket already `Done`/`Closed`/`Merged` — starting fresh work on finished work is nearly always a wrong key
+- Stops on a ticket `In Progress` under someone else — two people on one ticket is worth a question first
+- On closing: stops when the branch's ticket key disagrees with the key the user named — neither wins, because either could be the mistake
 - Never transitions a Jira ticket without confirmation
 - Never discards uncommitted work without showing you the diff first, per file
 - Never switches branches over a dirty tree without warning
@@ -211,6 +217,7 @@ What it will and won't do on its own:
   assignee and reviewer first
 - Never picks `--no-verify` itself; when a pre-push hook runs a full build it hands
   you the choice
+- Discovers review conventions by reading each candidate file's **description** rather than matching on filenames — a checklist called `pre-flight.md` is found as reliably as one called `code-review.md`, and it's offered to you before being applied
 - Reports failures as failures — it won't claim a transition or MR succeeded when
   it errored
 

@@ -5,43 +5,46 @@ dropped rather than struck through — `git log` is the record.
 
 ## Blocking
 
-### 1. Test `new-ticket` end to end
+### 1. Test `new-ticket` end to end — mostly done, two gaps remain
 
-The only surface never executed. Everything else — the scanner, and
-`close-ticket`'s git and MR path — has been exercised against a real repo.
+A full run against a real ticket (BIDAYA-2084) exercised Steps 1–10 successfully:
+ticket validation, assignee/status checks, branch creation, the In Progress
+transition, setting a 3h estimate, implementation, self-review off a
+user-referenced steering file, and handoff to `close-ticket` (staging, the
+review checklist offer, commit, the full pre-push hook actually completing,
+push, MR creation with `--reviewer` set, Jira transition to TO REVIEW, comment,
+and worklog). No wrong-ticket errors, no skipped gates, no silent failures.
 
-Unrun:
+Fixed after this round:
 
-- Step 5, the In Progress transition itself
-- Step 5's two-hop fallback. Verified *necessary* on a real board (TO REVIEW
-  offers no direct route to In Progress; `To Do` was the only valid intermediate
-  of five transitions) but the path has never actually run.
+- **Self-review required the user to paste a steering-file reference manually**
+  (`#[[steering:workspace:...code-review-self.md]]`) — the skill never looked
+  for one on its own. `new-ticket` now has an explicit Step 9.6 that searches
+  for a review checklist by **description**, not filename, before offering to
+  wrap up, the same discovery approach already used in `close-ticket` and in
+  `gitlab-mr-review`.
+- **The final close-ticket report was a prose paragraph.** Step 8 now has a
+  structured template (MR/PR, Jira status, time logged, one block per fact)
+  instead of a run-on summary.
+- **Filler acknowledgments before tool calls** ("Now let me check...", "Let's
+  look at...") were common throughout the run. Both skills now say explicitly
+  to skip these — speak when there's a finding or a question, not before every
+  action.
+
+Still unrun:
+
+- Step 5's two-hop transition fallback. Verified *necessary* on a real board
+  (TO REVIEW offers no direct route to In Progress; `To Do` was the only valid
+  intermediate of five transitions) but the path itself has never executed —
+  BIDAYA-2084 had a direct `Start working` transition.
 - Step 5's refusal logic for `Merged` / `Rejected` / `Blocked`. This is the one
   that matters: Jira's `statusCategory` reports "In Progress" for `Merged`,
   `Blocked` *and* the current status, so matching on category instead of
   `to.name` would mark a ticket **Merged**. Reasoned through against a real
   transition list, never executed.
-- Step 6, setting the time estimate
 
-Needs a real Jira write, so it needs a ticket that's safe to bounce
-To Do → In Progress and back, or a sandbox project.
-
-Track record: each of the three test rounds so far found exactly three real
-bugs, two of which would have failed on first use. Assume this surface holds
-more.
-
-### 2. Pick a home, then fill in `plugin.json`
-
-Both fields are optional in the plugin schema and both need a real URL — an
-invented one that 404s is worse than an absent field.
-
-- `repository` — where the source lives, so installers can read the code, report
-  issues, or contribute. This is the one worth having.
-- `homepage` — a docs or landing page. For a tool this size it's usually the same
-  URL as `repository`, or just the README. Fine to omit.
-
-Also add a git remote and push. There is currently none, so history is local
-only.
+Needs either a ticket whose workflow has an intermediate hop before review, or
+a sandbox project set up to have one.
 
 ## Known limitations — document, don't fix
 
@@ -63,44 +66,7 @@ don't rediscover them as bugs. Also listed in the README.
 
 ## Open questions
 
-- ~~**Should the bundled `atlassian` MCP server ship in a shared version?**~~
-  **Decided: no, removed.** It shipped roughly 40 tool definitions for the 7 this
-  power uses, tied it to Atlassian Cloud, duplicated any existing user config, and
-  couldn't be cleanly disabled. The manual alternative is one paste plus one auth
-  click, so optional-and-easy beat mandatory-and-hard. Setup instructions for both
-  Jira and the Git host now live in the README. The full reasoning, kept because
-  the disable constraints are worth not rediscovering:
-  - Kiro's *Disable Server* action fails on a power-declared server with
-    `Server ... not found in any MCP config file`, because it only looks in user
-    settings files. This affects every power that bundles an MCP server.
-  - `"disabled": true` in this power's `mcp.json` is **invalid** and was confirmed
-    rejected in practice: Kiro reports `Component Issues — the MCP server
-    configuration is not valid, so this server was skipped`. The plugin schema
-    sets `additionalProperties: false` and `disabled` isn't a permitted key
-    (stdio allows `type`, `command`, `args`, `env`, `cwd`; remote allows `type`,
-    `url`, `headers`). That key belongs to Kiro's own settings format, not the
-    Agent Plugins one. It does *effectively* disable the server, but only as a
-    side effect of failing validation, and it leaves a standing warning — not
-    something to rely on.
-  - It can't be shadowed from user settings either: for `plugin.json`-format
-    powers, Kiro manages bundled servers internally and doesn't write them into
-    `~/.kiro/settings/mcp.json`, so there's no entry to override.
-  - The documented levers are a **permissions deny rule** on
-    `power-jira-ticket-workflow-atlassian/*` (gates tool invocation, not the
-    server process), **Disable All Tools** in the panel, `includePowers: false`
-    for all powers at once, or deleting the block. See the README for the exact
-    forms.
-
-  Shipping a dependency whose only clean removal is editing the package is still a
-  poor default. Kept for now because auth turned out to be a single click, which
-  was the main argument against bundling — but that argument was about
-  convenience, and this one is about control.
 - **Is `PROJECT_SCANNER_MIN_AUTHOR_SAMPLE` = 5 the right default?** It exists to
   stop the author-convention signal being circular — this power writes commits,
   so at n=1 the only evidence can be a commit it generated itself. 5 is a
   judgement call. Revisit with real usage data.
-- **Does `--reviewer` accept a resolved username reliably?** Name *resolution*
-  is verified (recent MRs give an unambiguous username where the project member
-  list returns nothing), and `--assignee` is verified end to end. Passing a
-  reviewer through to a created MR has not been tested, deliberately, to avoid
-  notifying a real person with a test MR.

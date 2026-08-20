@@ -15,6 +15,28 @@ When the user says they want to start working on a ticket (or mentions a Jira ti
 
 **This skill ends at implementation.** It does not commit, push, or open a merge request — that's `close-ticket`, invoked separately by the user. See Step 10.
 
+**Skip filler acknowledgments before a tool call.** "Now let me check the branch state," "Let me read the ticket," "Let's look at the scanner output" — the tool call itself already shows progress; a sentence announcing it first adds nothing and slows down a workflow that's already many steps long. Speak when you have something to report (a finding, a decision, a question), not before every action that leads up to it.
+
+## Mistakes a user can hand you — check for these before acting
+
+A ticket key or URL is a single string that's easy to get wrong, and this workflow acts on it by switching branches and moving a ticket other people watch. Catch a mismatch before it costs a wrong branch, a transition on someone else's ticket, or work started on the wrong thing.
+
+Each case below says whether to **stop** (wait for an answer before continuing) or **flag** (say it, keep going, let the user's next reply correct course).
+
+| What's wrong | Where | Do this |
+| --- | --- | --- |
+| URL isn't an Atlassian issue link, or key isn't `{PREFIX}-{NUMBER}` | Step 1 | 🛑 **Stop** — don't guess a key from a partial match |
+| Ticket doesn't exist (404) or you can't access it | Step 1 | 🛑 **Stop** — likely a typo or a wrong site |
+| Ticket is assigned to someone else | Step 1 | ⚠️ **Flag** — legitimate sometimes, but the shape of a typo |
+| Ticket is unassigned | Step 1 | ⚠️ **Flag** — offer to assign it to the user |
+| Ticket is already `Done` / `Closed` / `Merged` | Step 1 | 🛑 **Stop** — starting work on finished work is almost always wrong |
+| Ticket is already `In Progress` with someone else's name on it | Step 1 | 🛑 **Stop** — two people on one ticket is worth a word first |
+| Standing on a different ticket's branch | Step 2.2 | ⚠️ **Flag** (same prefix) / 🛑 **Stop** (different prefix) |
+| Detached HEAD | Step 2.2 | 🛑 **Stop** |
+| Dirty working tree | Step 2.2 | 🛑 **Stop** — offer leave / stash, never commit |
+
+Most of these fold into Step 3, which is already a blocking gate — surface them there rather than inventing new pauses. The ones marked 🛑 in Steps 1–2 are the exceptions: they need an answer *before* Step 4 touches a branch, because by then the mistake has already cost something.
+
 ## Step 0 — Scan the Project (ALWAYS FIRST)
 
 Call the `get_project_profile` MCP tool (from the `project-scanner` server bundled with this power) with the workspace root path. **Everything project-specific below comes from this scan** — package manager, branch names, commit format, git hooks, framework, test runner. Never guess or carry over conventions from a previous project.
@@ -47,7 +69,16 @@ A ticket key is always `{PREFIX}-{NUMBER}` — for example `PROJ-1234`, `ABC-482
 
 ## Step 1 — Read the Ticket
 
-### Resolving `cloudId` first (required by every Jira tool)
+### First: is the ticket reference even valid?
+
+Before resolving anything, check what you were actually given. A Jira issue URL has the shape `https://{site}.atlassian.net/browse/{PREFIX}-{NUMBER}`; a bare key is `{PREFIX}-{NUMBER}`.
+
+**If neither matches, stop and ask — don't extract a best-effort key from a partial match.** A wrong key sends every call below to the wrong ticket, and the first visible symptom is often a transition landing on someone else's work. Two cases worth naming:
+
+- **A URL that isn't an Atlassian issue link** — a Confluence page, a board/backlog view (`/jira/software/projects/.../boards/1`), a filter, or a link to a comment on something else. These contain project-ish strings that look extractable but aren't a single issue. Say what you received and ask for the issue link or key.
+- **A key-shaped string that isn't a ticket** — `UTF-8`, `COVID-19`, `HTTP-404`, an ISO date fragment. If a "key" appears in prose rather than as the message's subject, confirm before acting on it.
+
+### Resolving `cloudId` (required by every Jira tool)
 
 Every Atlassian tool call takes a required `cloudId`. Resolve it once and reuse it for the whole workflow:
 
@@ -59,8 +90,30 @@ Then read the ticket **using `getJiraIssue` with `parent` in `fields`** — not 
 - A 1–2 sentence summary of the scope
 - Its **issue type** (Bug, Story, Task…) — this drives the branch-type suggestion in Step 3
 - Its **current status** — this drives the transition in Step 5
+- Its **assignee** — checked below, and shown in the Step 3 summary
 - Its **parent epic**, if any — this drives the target-branch question in Step 3
 - Which apps/libs/modules are likely affected, based on the real project structure (`monorepoTools`, `frameworks` and `ecosystems` from the scan, steering files, or direct exploration). In a polyglot repo say which stack each affected area belongs to — "the Angular frontend and the FastAPI service" is actionable, "the app" is not
+
+### Then: is this the right ticket, and is it yours to start?
+
+A successful read can still come back describing a ticket that isn't the one to start work on. Run these three checks before Step 2, since Step 4 is about to create a branch named after this key.
+
+**The read failed.** A 404 or permission error means the key doesn't exist on this site, or you're pointed at the wrong site. 🛑 **Stop** — don't retry with a guessed variant of the key or silently fall back to a different site. Say which key you tried on which site, and ask. A transposed digit (`PROJ-4123` for `PROJ-4213`) resolves to a real but unrelated ticket just as often as it 404s, which is why the assignee and status checks below matter even on a successful read.
+
+**Check the assignee** against the current user — `atlassianUserInfo` gives you who you're authenticated as, and it's one call:
+
+- **Assigned to someone else** — ⚠️ **Flag it, don't block.** Picking up a colleague's ticket is normal (they're away, you're pairing, work got handed over), but it's also exactly what a mistyped key looks like. Say it plainly and let the reply settle it: *"`PROJ-625` is assigned to {name}, not you — flagging in case that's not the ticket you meant. Continuing on the assumption it is."*
+- **Unassigned** — ⚠️ **Flag it and offer.** An unassigned ticket you're about to start should almost certainly be yours: *"`PROJ-625` is unassigned. Want me to assign it to you as part of moving it to In Progress?"* Fold the offer into Step 3's batch rather than asking separately, and only assign if they say yes — `editJiraIssue` with the `assignee` field.
+- **Assigned to the current user** — say so in the Step 3 summary (`Assignee: Jane Doe (you)`) and carry on. No question needed.
+
+**Check the status** — read `status.statusCategory.key` alongside `status.name`:
+
+- **Category `done`** (`Done`, `Closed`, `Merged`, `Rejected`, `Won't Fix`) — 🛑 **Stop.** Starting fresh work on a finished ticket is almost always a wrong key or a ticket that needs reopening first, and the decision belongs to the user: *"`PROJ-625` is already `Done`. Starting new work on it looks wrong — did you mean a different ticket, or should this be reopened first?"*
+- **Category `indeterminate` and assigned to someone else** (`In Progress` under another name) — 🛑 **Stop.** Two people on one ticket at once is worth a sentence before you create a second branch for it: *"`PROJ-625` is already `In Progress`, assigned to {name}. Are you taking it over, or is this the wrong ticket?"*
+- **Category `indeterminate` and assigned to the current user** — fine. It's probably work you're resuming; Step 2.1 will find the existing branch. Note that Step 5's transition is likely a no-op and say so there.
+- **Category `new`** (`To Do`, `Backlog`, `Open`) — the normal case. Proceed.
+
+Don't run these as three separate messages. Gather all of it, then present it once — either as part of Step 3's blocking batch (for the ⚠️ flags) or immediately as a single question (for a 🛑).
 
 ### Identifying the parent epic
 
@@ -226,6 +279,8 @@ Then the detail:
 | **Status** | ⚪ To Do |
 | **Assignee** | Jane Doe (you) |
 | **Epic** | 🎯 PROJ-300 — Payments Platform |
+
+When the assignee isn't the current user, mark the row so it can't be skimmed past — `⚠️ Unassigned` or `⚠️ Sam Patel (not you)` — rather than stating the name flatly as though it were expected. Same for a status that isn't in the `new` category on a ticket you're starting fresh.
 
 **Issue type** — from `issuetype.name`:
 
@@ -522,6 +577,40 @@ Then wait. The point isn't ceremony; it's that a wrong approach caught in one me
 
 **If the change grows while you're in it** — you start with one file and find it needs six — stop and say so rather than pressing on. That's the moment the estimate and possibly the scope stopped being accurate, and the user should know while it's still cheap.
 
+## Step 9.6 — Self-review before offering to wrap up
+
+Once the change is written and verified, do this before saying anything about
+committing. **Don't wait for the user to point you at a review checklist** — a
+user who has to paste a steering-file reference to get it applied is the
+workflow failing to do its own job.
+
+1. **Search for review conventions, judged by description, not filename.**
+   Projects name these anything — `code-review-self.md`, `pre-flight.md`,
+   `definition-of-done.md`. Check `.kiro/steering/` (including files marked
+   `inclusion: manual`, which aren't already in your context), any
+   `.kiro/skills/` directory, and repo-root rule files (`AGENTS.md`,
+   `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`). Read each
+   candidate's own description and judge whether it's about reviewing,
+   verifying, or checking work before it ships — not whether its filename
+   contains "review".
+2. **If you find one, name it and fold the offer into the wrap-up question**
+   below rather than asking twice:
+
+   > The fix is in and lint passes. I found `.kiro/steering/code-review-self.md`
+   > — its description says it's a self-review checklist. Want me to check the
+   > changes against it, and then wrap up the ticket (commit, push, open the MR)?
+
+3. **If they say yes, apply it against the actual diff** (`git diff`), not from
+   memory of what you changed. Only the items relevant to the files you
+   touched. Fix anything it catches inline, same as a lint fix, and mention
+   what it caught when you report back.
+4. **If nothing describes itself that way**, skip silently and use the plain
+   wrap-up question from Step 10 — don't manufacture a checklist offer where
+   none exists.
+
+This runs once, here, before Step 10's question — not repeated if the user asks
+for another round of changes later in the same ticket.
+
 ## Step 10 — Where this skill ends
 
 This skill covers **starting** a ticket and implementing it. It stops there.
@@ -551,6 +640,8 @@ A user answering "go ahead" to the Step 3 scope question is authorising **implem
 
 > The fix is in and lint passes. Want me to wrap up the ticket — commit, push and open the MR?
 
+(If Step 9.6 found and ran a self-review checklist, that offer already covers this question — don't ask it twice.)
+
 Then wait. If the user explicitly asks you to commit and push in the same breath as approving the work, that's fine — read `close-ticket` and follow it properly rather than improvising a shortened version.
 
 ## Quick Reference
@@ -560,7 +651,9 @@ Then wait. If the user explicitly asks you to commit and push in the same breath
 | Step | Action |
 | --- | --- |
 | 0. Scan | `get_project_profile` — branch names, commit format, package manager, hooks |
+| 1. Validate | URL/key actually an Atlassian issue reference? Read failed (404/permission)? → **stop**, don't guess a variant |
 | 1. Read ticket | Resolve `cloudId`, then **`getJiraIssue` with `parent` in `fields`** — `fetch`/`search` cannot return a parent, so using them means you don't know whether an epic exists |
+| 1. Sanity-check | Assignee vs current user (`atlassianUserInfo`) → flag if someone else's, offer to assign if unassigned. Status category `done` → **stop**; `indeterminate` under another name → **stop** |
 | 2.1 Existing branches | Re-scan with `ticket_keys: [ticket, epic]` — never create a duplicate branch |
 | 2.2 Branch state | Check current branch, flag prefix mismatch, dirty tree, detached HEAD |
 | 3. Confirm | Branch type + target (epic-aware) + **time estimate** + In Progress consent + scope, in one message |
@@ -571,6 +664,7 @@ Then wait. If the user explicitly asks you to commit and push in the same breath
 | 8. Navigation | Only when there's a reachable screen |
 | 9. Spec | Only for complex tickets — **propose it, don't create it unasked** |
 | 9.5 Plan | Trivial change: just do it. Multi-file, shared code, new/deleted files, or a judgement call: show the plan and wait |
+| 9.6 Self-review | Search for a review checklist by **description**, not filename — don't wait for the user to point one out. Found → fold the offer into the wrap-up question |
 | 10. Stop | Implement, then hand back. **No commit, push, MR, review transition or worklog** — that's `close-ticket`, invoked by the user |
 
 | Scenario | Branch from | Branch name | Merge to |

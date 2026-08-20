@@ -40,6 +40,35 @@ This power handles the full lifecycle of working on a Jira ticket: starting it (
 
 Detection spans ten ecosystems (JavaScript, Python, Rust, Go, Java/Kotlin, Ruby, PHP, .NET, Dart, Elixir) rather than assuming Node. Frameworks, monorepo tools and test runners are reported as arrays because a polyglot repo genuinely has several. The scanner also resolves a `commands` block — lint, test, build, format — preferring the repo's own task runner (`make`, `just`, `task`) over a package script, and a generic ecosystem default last, so verification works even on a stack whose tooling the scanner doesn't know.
 
+## Catching a wrong ticket before it costs anything
+
+A ticket key is one easily-mistyped string, and both workflows act on it by switching
+branches and moving a ticket the whole team watches. Each skill opens with a
+**"Mistakes a user can hand you"** table that says, per case, whether to stop and wait
+or flag and continue:
+
+- A URL that isn't an Atlassian issue link, or a key-shaped string that isn't a ticket
+- A key that 404s or that you can't access — never retried with a guessed variant
+- A ticket assigned to **someone else**, or unassigned (with an offer to assign it)
+- A ticket already `Done`/`Merged`/`Closed`, or already `In Progress` under another name
+- On closing: the branch's ticket key disagreeing with the key the user named — neither
+  wins automatically, because either one could be the mistake
+- Wrong branch, foreign project prefix, detached HEAD, dirty tree
+
+Most fold into a gate the workflow already has rather than adding new pauses. The
+few that stop do so before a branch is created or anything is staged, since after
+that the mistake has already cost something.
+
+## Finding your review conventions
+
+`close-ticket`'s pre-commit checklist uses the scanner's `reviewChecklist` as a fast
+path, but that matches on filenames — so when it comes back empty the skill looks
+itself and judges candidates by **what each one's description says it does**, not by
+what it's called. A checklist named `pre-flight.md` or `definition-of-done.md` is
+found as reliably as one named `code-review.md`. When something turns up it's named
+and offered rather than applied silently, folded into the staged-review gate that
+already exists.
+
 ## Requirements
 
 **Bundled:** the `project-scanner` MCP server ships with this power. It needs `node` and `git` and nothing else. `git` is resolved to an absolute path from the standard install locations rather than trusted from `PATH`; set `PROJECT_SCANNER_GIT_PATH` if yours lives somewhere unusual.
