@@ -683,6 +683,12 @@ Ask for the time spent **here**, not after the transition. All three are Jira
 updates for the same ticket, so batching them means one reply from the user and one
 sequence of writes instead of two:
 
+**Pull `timetracking` (estimate, already-logged total, remaining) when you re-read
+the ticket for this step, and show it as context alongside the time question —
+don't ask for a bare number with no reference point.** A worklog is additive, not
+an overwrite, so there's no "keep or change" choice like `new-ticket`'s estimate —
+but the user still benefits from seeing where they stand before naming a figure:
+
 > "Ready to wrap up `PROJ-420`:
 >
 > - **Status:** To Review
@@ -690,9 +696,14 @@ sequence of writes instead of two:
 >
 >   *{full proposed comment text}*
 >
-> - **Time spent?** (e.g. `2h`, `30m`, `1d`)
+> - **Time spent this session?** Estimate was `{originalEstimate}`, `{timeSpent}`
+>   already logged (`{remainingEstimate}` remaining). (e.g. `2h`, `30m`, `1d`)
 >
 > Confirm and I'll apply all three."
+
+**Omit the estimate/logged/remaining clause if `timetracking` came back empty** —
+a ticket with no estimate and no prior worklogs has nothing to show, and inventing
+zeros would be worse than saying nothing.
 
 - **Yes + a duration** → transition, comment, and log the worklog
 - **A different status** → use that, adjust the comment

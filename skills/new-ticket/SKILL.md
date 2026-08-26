@@ -136,12 +136,15 @@ has one, because the tool you used is incapable of telling you either way.
 
 ```
 getJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY},
-               fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "reporter", "parent"]
+               fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "reporter", "parent", "timetracking"]
 ```
 
-**One call, with `parent` in the list.** Naming `fields` replaces the defaults
-rather than adding to them, so a call with `fields: ["parent"]` returns *only* the
-parent and forces a second request for everything else. Put them all in one array.
+**One call, with `parent` and `timetracking` both in the list.** Naming `fields`
+replaces the defaults rather than adding to them, so a call with `fields:
+["parent"]` returns *only* the parent and forces a second request for everything
+else. Put everything this workflow needs in one array — `timetracking` is what
+Step 3 needs to ask about the estimate correctly (see below), and it isn't in the
+default field list either.
 
 Note that `parent` isn't in `getJiraIssue`'s default field list either (summary,
 description, status, issuetype, priority, labels, components, assignee, reporter,
@@ -279,8 +282,11 @@ Then the detail:
 | **Status** | ⚪ To Do |
 | **Assignee** | Jane Doe (you) |
 | **Epic** | 🎯 PROJ-300 — Payments Platform |
+| **Estimate** | 5h already logged (from `timetracking.originalEstimate`) |
 
 When the assignee isn't the current user, mark the row so it can't be skimmed past — `⚠️ Unassigned` or `⚠️ Sam Patel (not you)` — rather than stating the name flatly as though it were expected. Same for a status that isn't in the `new` category on a ticket you're starting fresh.
+
+**Omit the Estimate row entirely if `timetracking.originalEstimate` is unset** — that's the normal case, and Step 3's time-estimate question already covers it. Only show the row when the ticket already carries a number, since that's the surprising case worth putting in front of the user before Step 3 asks anything.
 
 **Issue type** — from `issuetype.name`:
 
@@ -335,13 +341,21 @@ Rules:
    > Target branch: `{git.integrationBranch}` — confirm, or name a different base.
 
    Name the branch you're proposing and accept an override. Only explain where it came from if it's likely to surprise — e.g. `git.integrationBranchSource` is `default-branch` because the repo has no `develop`, so work is going onto `main` directly.
-3. **Time estimate** — "How long do you estimate this will take? (e.g. `2h`, `4h`, `1d`)". Always ask. The user may decline, but never silently skip the question.
+3. **Time estimate** — **check `timetracking.originalEstimate` (Step 1) before asking anything**, and phrase the question differently depending on what's there:
+
+   **Already has an estimate** — don't propose a fresh number as though none existed; that overwrites a figure someone (possibly the user, in an earlier session, or someone during grooming) already committed to. Ask whether to keep it:
+
+   > This ticket already has an estimate of **`{originalEstimate}`**. Keep it, or add more time / set a new figure?
+
+   **No estimate set** — "How long do you estimate this will take? (e.g. `2h`, `4h`, `1d`)". Always ask. The user may decline, but never silently skip the question.
 
    Offer a suggestion based on the ticket's scope and issue type — a single-file style fix ≈ `3h`, a small logic change ≈ `4h`, a multi-view feature ≈ `2d` — and let them confirm or adjust. Never set an estimate without the user agreeing to the number.
 
    **Suggest a single value, never a range.** `timetracking.originalEstimate` accepts one duration (`30m`, `2h`, `1d`, `1w`, or a combination like `1d 4h`); it cannot store `2-4h`. Proposing a range means either Step 6 fails or you quietly pick one end on the user's behalf. If you're genuinely torn between two figures, offer the higher one and say why.
 
    Say plainly that any figure you propose is a guess made **before** reading the code — Steps 7 and 8 haven't run yet, so you have the ticket description and nothing else. The user's own number wins by default.
+
+   **"Add more time" means increasing `originalEstimate`, not logging a worklog.** `timetracking.originalEstimate` is the plan set before work starts; a worklog (Step 11 in this skill's counterpart, `close-ticket`) is time actually spent after the fact. If the user wants to bump `2h` to `5h` here, that's still a Step 6 `editJiraIssue` call against `originalEstimate` — don't route it through the worklog API by mistake.
 4. **Moving the ticket to In Progress** — tell them you'll transition it (naming its current status) and ask them to confirm. Folding this into the batch keeps the "never transition without confirmation" rule without costing an extra round trip.
 5. **Scope check** — ask them to confirm your understanding of the scope before you start.
 
@@ -354,7 +368,7 @@ Rules:
 A short reply like "yes", "go ahead", or "looks good" is common, and it does **not** answer five separate questions. Work out what was actually answered and treat the rest as outstanding:
 
 - **Branch type and target** — a blanket yes can reasonably be read as accepting your stated recommendations, since you named specific values.
-- **Time estimate** — if you proposed a figure and they said yes, use it. If you didn't, or they ignored it, ask once more or skip it; never invent a number.
+- **Time estimate** — if you proposed a figure (or asked "keep or change") and they said yes/keep, use that. If you didn't ask, or they ignored it, ask once more or skip it; never invent a number, and never overwrite an existing estimate on a bare "go ahead."
 - **In Progress consent** — ⚠️ **never inferred.** This changes a ticket other people watch. If the reply doesn't clearly cover it, ask before transitioning. "Go ahead" on a scope question is not permission to move a ticket on the board.
 - **Scope** — if they didn't engage with your summary, ask before writing code. Silence isn't agreement that you understood the ticket.
 
@@ -497,7 +511,11 @@ matter what its category says.
 
 ## Step 6 — Set the Time Estimate
 
-Also happens right after Step 4/5, before any code changes. Use the answer from Step 3. If the user gave one:
+Also happens right after Step 4/5, before any code changes. Use the answer from Step 3.
+
+**If the user chose to keep the existing estimate, skip this call entirely** — there's nothing to write, and calling `editJiraIssue` with the same value it already had risks an unnecessary update on the ticket's history for no reason.
+
+If the user set a new figure or changed an existing one:
 
 ```
 editJiraIssue → cloudId: {resolved in Step 1}, issueIdOrKey: {TICKET-KEY},
@@ -663,7 +681,7 @@ Then wait. If the user explicitly asks you to commit and push in the same breath
 | 3. Confirm | Branch type + target (epic-aware) + **time estimate** + In Progress consent + scope, in one message |
 | 4. Branch | Create from `{BASE}` or epic branch |
 | 5. In Progress | `getTransitionsForJiraIssue` → transition, two hops if needed, report failures — right after branch creation, before touching code |
-| 6. Estimate | `editJiraIssue` with `timetracking.originalEstimate` — right after branch creation, before touching code |
+| 6. Estimate | `editJiraIssue` with `timetracking.originalEstimate` — right after branch creation, before touching code. **If one already exists, ask keep-or-change in Step 3, don't just propose a fresh number; skip the API call if kept as-is** |
 | 7. Checklist | Files, designs, dependencies, API needs |
 | 8. Navigation | Only when there's a reachable screen |
 | 9. Spec | Only for complex tickets — **propose it, don't create it unasked** |
