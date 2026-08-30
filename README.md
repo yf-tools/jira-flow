@@ -216,7 +216,10 @@ What it will and won't do on its own:
 - Never creates an MR without showing you the exact title, description, target,
   assignee and reviewer first
 - Never picks `--no-verify` itself; when a pre-push hook runs a full build it hands
-  you the choice
+  you the choice. If selected, it remains private execution detail and is never
+  written to an MR/PR, thread, comment, or Jira update
+- Uses one confirmed MR/PR target consistently for diff review and creation
+- Shows diagnostics, targeted tests, lint, smoke-test and build evidence before commit
 - Discovers review conventions by reading each candidate file's **description** rather than matching on filenames — a checklist called `pre-flight.md` is found as reliably as one called `code-review.md`, and it's offered to you before being applied
 - Reports failures as failures — it won't claim a transition or MR succeeded when
   it errored

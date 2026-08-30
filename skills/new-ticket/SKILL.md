@@ -11,7 +11,7 @@ When the user says they want to start working on a ticket (or mentions a Jira ti
 
 **Follow the steps in order.** Steps 1 and 2 gather everything needed so that Step 3 can ask all its questions in a single round trip. Don't ask the user anything before you've read the ticket and checked the branch state — you can't recommend a branch type without knowing whether the ticket is a bug or a feature.
 
-**The ordering that matters most is after Step 3.** Once the user answers, Steps 4 (branch), 5 (In Progress) and 6 (estimate) run immediately and in that order, before any code is read or written. This is the step most often skipped, particularly when the user's answer arrives with screenshots or new requirements attached — see the checkpoint at the end of Step 3.
+**The ordering that matters most is after Step 3.** Once the user answers, Steps 4 (branch), 5 (approved assignment, then In Progress) and 6 (estimate) run immediately and in that order, before any code is read or written. This is the step most often skipped, particularly when the user's answer arrives with screenshots or new requirements attached — see the checkpoint at the end of Step 3.
 
 **This skill ends at implementation.** It does not commit, push, or open a merge request — that's `close-ticket`, invoked separately by the user. See Step 10.
 
@@ -52,7 +52,7 @@ The fields this workflow depends on:
 | `git.currentBranch` | Step 2.2 branch-state check (no need to shell out for it) |
 | `git.currentBranchTicketKey` / `currentBranchProjectPrefix` | Detecting a ticket/project mismatch |
 | `git.ticketBranches` | Step 2.1 — whether this ticket and its epic already have branches. Only populated when you pass `ticket_keys` |
-| `git.integrationBranch` | The branch to cut from and merge back into |
+| `git.integrationBranch` | Candidate target when no existing MR/PR or confirmed epic target exists; Step 2.1.1 establishes authoritative `{TARGET}` |
 | `git.branchNaming.dominantPrefixes` | Whether this repo uses `feature/` + `fix/`, `feat/`, `bugfix/`, etc. |
 | `git.branchNaming.usesTicketKeyInBranch` | Whether branch names embed the ticket key at all |
 | `git.isDirty` / `git.detached` | Whether it's safe to switch branches at all |
@@ -85,14 +85,23 @@ Every Atlassian tool call takes a required `cloudId`. Resolve it once and reuse 
 1. If the user gave a URL like `https://yoursite.atlassian.net/browse/PROJ-123`, try the hostname (`yoursite.atlassian.net`) as `cloudId` directly — this usually works.
 2. If that fails, or you only have a bare ticket key with no URL, call `getAccessibleAtlassianResources` to list the sites you can reach and pick the matching one. If several could match, ask the user rather than guessing.
 
-Then read the ticket **using `getJiraIssue` with `parent` in `fields`** — not `fetch` or `search`, which cannot return a parent at all (see below). Note for use in the next two steps:
+Then read the ticket **using `getJiraIssue` with `fields: ["*all"]` and `expand: "names"`** — not `fetch` or `search`, which cannot reliably return hierarchy or custom fields (see below). `*all` is intentional here: acceptance criteria, environment, release and dependency fields are frequently custom and their IDs differ per Jira site. Summarize only the decision-relevant fields; don't dump the raw response into chat.
+
+Build a compact context bundle for Steps 2–3:
 
 - A 1–2 sentence summary of the scope
-- Its **issue type** (Bug, Story, Task…) — this drives the branch-type suggestion in Step 3
-- Its **current status** — this drives the transition in Step 5
-- Its **assignee** — checked below, and shown in the Step 3 summary
-- Its **parent epic**, if any — this drives the target-branch question in Step 3
-- Which apps/libs/modules are likely affected, based on the real project structure (`monorepoTools`, `frameworks` and `ecosystems` from the scan, steering files, or direct exploration). In a polyglot repo say which stack each affected area belongs to — "the Angular frontend and the FastAPI service" is actionable, "the app" is not
+- Description and acceptance criteria (use `expand: "names"` to identify custom fields by display name rather than hardcoding an ID)
+- Issue type, priority, status, assignee and reporter
+- Original estimate, time already logged and remaining estimate — keep all three labels distinct
+- Direct parent and resolved epic ancestry (bounded lookup described below)
+- Components, labels, fix versions/release and environment
+- Blocking, blocked-by and related issue links, preserving their direction
+- Subtasks/children relevant to the requested work
+- Attachments/screenshots: list name and type, and state whether each was actually inspected
+- Relevant comments that clarify or change the requirements
+- Which apps/libs/modules are **probably** affected, based on the real project structure (`monorepoTools`, `frameworks` and `ecosystems` from the scan, steering files, or direct exploration). Label this preliminary until code has been inspected — the scanner identifies stacks, not exact ownership
+
+For every important category, distinguish **absent** from **not inspected**. Never say "no acceptance criteria," "no epic," or "no attachments" when the tool response simply didn't include or inspect that field.
 
 ### Then: is this the right ticket, and is it yours to start?
 
@@ -131,47 +140,32 @@ there is no parameter that would add one. The same goes for `search`.
 The result is a silent false negative: you report "no parent epic" when the ticket
 has one, because the tool you used is incapable of telling you either way.
 
-**So: whichever tool you used to read the ticket, make a `getJiraIssue` call with
-`parent` in `fields` before you claim anything about the epic.**
+**So: whichever tool you used initially, make one authoritative `getJiraIssue` call with all fields before claiming the context is complete.**
 
 ```
 getJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY},
-               fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "reporter", "parent", "timetracking"]
+               fields: ["*all"], expand: "names"
 ```
 
-**One call, with `parent` and `timetracking` both in the list.** Naming `fields`
-replaces the defaults rather than adding to them, so a call with `fields:
-["parent"]` returns *only* the parent and forces a second request for everything
-else. Put everything this workflow needs in one array — `timetracking` is what
-Step 3 needs to ask about the estimate correctly (see below), and it isn't in the
-default field list either.
+`fields: ["*all"]` is deliberate. Jira sites store acceptance criteria, affected environment and release metadata under different custom-field IDs; `expand: "names"` lets you identify them by display name instead of hardcoding an instance-specific ID. Summarize only the useful fields listed above.
 
-Note that `parent` isn't in `getJiraIssue`'s default field list either (summary,
-description, status, issuetype, priority, labels, components, assignee, reporter,
-created, updated, resolution, project), so it must be named explicitly even there.
+**Never state "no parent epic" unless this authoritative read came back without a usable parent after the bounded ancestry check below.** If the response omitted a category, report it as not inspected rather than absent.
 
-**Never state "no parent epic" unless a `getJiraIssue` call that explicitly
-requested `parent` came back without one.** If you didn't make that call, say "I
-haven't checked for a parent epic" — which is honest — or just make the call. It's
-one request.
+Why it matters beyond tidiness: if the epic has a branch, missing it means the ticket is cut from the integration branch instead of the epic branch, and the MR then targets the wrong base. Both are silent until review.
 
-Why it matters beyond tidiness: if the epic has a branch, missing it means the
-ticket is cut from the integration branch instead of the epic branch, and the MR
-then targets the wrong base. Both are silent until review.
-
-Then **check the parent's issue type** — don't assume `parent` means epic:
+Then resolve hierarchy without assuming every `parent` is an epic:
 
 ```
-parent.key                        -> e.g. "PROJ-241"
-parent.fields.issuetype.name      -> "Epic" | "Story" | ...
-parent.fields.issuetype.hierarchyLevel -> 1 for Epic, 0 for Story/Bug/Task
+issue.parent.key                              -> direct parent
+issue.parent.fields.issuetype.hierarchyLevel -> 1 means Epic, 0 means Story/Bug/Task
 ```
 
-`parent` is used for **both** epic links and subtask parents. If the ticket is a subtask, `parent` is the parent Story, not an epic — treat it as "no epic" for branching purposes unless the user says otherwise.
+- Direct parent is hierarchy level 1 → use it as the epic.
+- Direct parent is level 0 (common for subtasks) → fetch that parent once with `fields: ["parent", "issuetype", "summary"]`. If its parent is level 1, that grandparent is the epic.
+- No usable `parent` → inspect the authoritative `*all` response's field-name map for a legacy field displayed as **Epic Link**. If it contains a ticket key, fetch that issue and verify its issue type/hierarchy before using it. Never hardcode a custom-field ID; Jira instances assign different IDs.
+- Stop after the direct-parent follow-up or verified Epic Link fallback. Do not walk an arbitrary hierarchy indefinitely; report deeper ancestry as unchecked and ask only if it affects branching.
 
-Some older projects also expose a legacy Epic Link custom field (often `customfield_10014`) holding the epic key as a plain string. Use it only as a fallback if `parent` is absent, and never hardcode the field ID as the primary source — it varies per instance.
-
-If the ticket has no epic, note that and move on.
+Keep the direct parent and epic separate in the summary. A subtask's parent Story is useful context even when its grandparent Epic determines the branch target.
 
 **If Jira tools aren't available or aren't authenticated**, don't stall — say so and ask the user to paste the ticket description and acceptance criteria, then continue. Skip Step 5 and note that status has to be moved manually. The rest of this workflow does not depend on API access.
 
@@ -201,8 +195,9 @@ Read the two results:
 
 - `exists: false` → nothing to reuse, create it in Step 4.
 - `exists: true` → **do not create a second branch.** Report the name(s) found
-  and plan to switch to it instead. Skip the branch-type and target questions in
-  Step 3; there's nothing left to decide.
+  and plan to switch to it instead. Skip the branch-type question in Step 3, but
+  **do not skip target confirmation** — branch existence proves the branch name,
+  not what it should merge into. Resolve `{TARGET}` as described below.
   - `remoteOnly: true` → it's on the remote but not local. Check it out tracking
     the remote.
   - `localOnly: true` → local only, never pushed. Switch to it, but say there's
@@ -217,6 +212,16 @@ Read the two results:
 - `exists: false` → no epic branch. The integration branch is the right default;
   mention the epic exists but has no branch, so the user can say if they want one
   created.
+
+### 2.1.1 — Establish one authoritative `{TARGET}`
+
+`{TARGET}` is the branch this ticket will eventually merge into. Resolve it now and carry it through the rest of this session:
+
+1. An open MR/PR already exists for the ticket branch → its `target_branch`/base is authoritative.
+2. This workflow is creating a new branch → `{TARGET}` is the base explicitly confirmed in Step 3 (epic branch or integration branch).
+3. A branch exists but no MR/PR exists → **ask**. The branch name and merge-base heuristics do not prove intent; never claim its base is "already decided."
+
+State `{TARGET}` in the Step 3 plan and retain it for `close-ticket`. If `close-ticket` runs in a new session it must rediscover or reconfirm it; conversational memory is not durable state.
 
 ### 2.2 — Where are you standing?
 
@@ -233,14 +238,14 @@ Compare `git.currentBranch` against the ticket you're about to start, and handle
 - **Detached HEAD** (`git.detached` is true) — stop and ask the user how they want to proceed; don't branch from a detached state silently.
 - **On an epic branch** — note it, and ask in Step 3 whether this ticket should branch off it.
 
-**If `git.isDirty` is true**, say so before any checkout and ask how to handle it. Never switch branches over uncommitted work without saying so.
+**If `git.isDirty` is true**, stop before any checkout and ask how to protect the existing work. Do not continue ticket setup while unrelated changes ride across a branch switch.
 
 Offer only these:
 
-- **Leave them** — git carries uncommitted changes across a checkout. Usually fine, but say that if Step 4's pull touches the same files you'll get a conflict.
-- **Stash them** — `git stash push -m "{reason}"`, and tell the user how to get them back (`git stash pop`). Never stash silently; an invisible stash is work the user has forgotten about.
+- **Stay here and end ticket setup for now** — no git state changes.
+- **Create a named stash** — `git stash push -m "{reason}"`, then tell the user exactly how to restore it (`git stash pop`). Never stash silently; an invisible stash is work the user has forgotten about.
 
-**Do not offer to commit them.** Those changes belong to whatever the user was doing before this ticket — most likely the branch Step 2.2 just flagged as a different ticket's. Committing them would put unrelated work into this ticket's history, which is the exact mixing this workflow exists to prevent. It also contradicts Step 10: this skill does not create commits. If the user asks you to commit them, that's their call, but don't propose it.
+**Do not offer to carry the changes across or commit them.** Carrying them puts unrelated bytes on this ticket branch, where they can be mistaken for ticket work; committing them would put unrelated history there. If the user explicitly asks to delete changes, show each affected diff and reconfirm because deletion is irreversible.
 
 ### Step 2 performs no git operations
 
@@ -281,12 +286,20 @@ Then the detail:
 | **Priority** | 🟡 Medium |
 | **Status** | ⚪ To Do |
 | **Assignee** | Jane Doe (you) |
+| **Reporter** | Sam Patel |
+| **Parent** | 📗 PROJ-299 — Login improvements |
 | **Epic** | 🎯 PROJ-300 — Payments Platform |
-| **Estimate** | 5h already logged (from `timetracking.originalEstimate`) |
+| **Original estimate** | 5h |
+| **Time logged** | 2h |
+| **Remaining estimate** | 3h |
+| **Components** | Web, Authentication |
+| **Fix version** | 4.8.0 |
+
+Follow the table with short sections for **Acceptance criteria**, **Dependencies**, and **Attachments** when present. For attachments, state `inspected` or `not inspected`; listing a filename is not the same as understanding its content.
 
 When the assignee isn't the current user, mark the row so it can't be skimmed past — `⚠️ Unassigned` or `⚠️ Sam Patel (not you)` — rather than stating the name flatly as though it were expected. Same for a status that isn't in the `new` category on a ticket you're starting fresh.
 
-**Omit the Estimate row entirely if `timetracking.originalEstimate` is unset** — that's the normal case, and Step 3's time-estimate question already covers it. Only show the row when the ticket already carries a number, since that's the surprising case worth putting in front of the user before Step 3 asks anything.
+Omit rows whose fields are genuinely absent. If a field wasn't returned or an attachment wasn't opened, label it `not inspected` rather than presenting absence as fact.
 
 **Issue type** — from `issuetype.name`:
 
@@ -356,10 +369,10 @@ Rules:
    Say plainly that any figure you propose is a guess made **before** reading the code — Steps 7 and 8 haven't run yet, so you have the ticket description and nothing else. The user's own number wins by default.
 
    **"Add more time" means increasing `originalEstimate`, not logging a worklog.** `timetracking.originalEstimate` is the plan set before work starts; a worklog (Step 11 in this skill's counterpart, `close-ticket`) is time actually spent after the fact. If the user wants to bump `2h` to `5h` here, that's still a Step 6 `editJiraIssue` call against `originalEstimate` — don't route it through the worklog API by mistake.
-4. **Moving the ticket to In Progress** — tell them you'll transition it (naming its current status) and ask them to confirm. Folding this into the batch keeps the "never transition without confirmation" rule without costing an extra round trip.
+4. **Moving the ticket to In Progress and assignment** — tell them you'll transition it (naming its current status) and ask them to confirm. If the ticket is unassigned, include the explicit assignment offer from Step 1 in the same question. Consent to transition is not automatically consent to assignment, or vice versa.
 5. **Scope check** — ask them to confirm your understanding of the scope before you start.
 
-> If Step 2.1 found an existing branch for this ticket, skip questions 1 and 2 entirely — the branch name and its base are already decided. Just confirm the switch, and still ask 3, 4 and 5.
+> If Step 2.1 found an existing branch for this ticket, skip only the **branch-type** question — the branch name is known, but its intended MR target is not. Resolve or confirm `{TARGET}` using the target-provenance rules below, then still ask about estimate, In Progress/assignment consent and scope.
 
 **Wait for answers before proceeding.** Do not create the branch, transition the ticket, set the estimate, or touch any code until the user has responded to this batch.
 
@@ -370,6 +383,7 @@ A short reply like "yes", "go ahead", or "looks good" is common, and it does **n
 - **Branch type and target** — a blanket yes can reasonably be read as accepting your stated recommendations, since you named specific values.
 - **Time estimate** — if you proposed a figure (or asked "keep or change") and they said yes/keep, use that. If you didn't ask, or they ignored it, ask once more or skip it; never invent a number, and never overwrite an existing estimate on a bare "go ahead."
 - **In Progress consent** — ⚠️ **never inferred.** This changes a ticket other people watch. If the reply doesn't clearly cover it, ask before transitioning. "Go ahead" on a scope question is not permission to move a ticket on the board.
+- **Assignment consent** — ⚠️ **independent from transition consent.** If the ticket is unassigned, apply assignment only when the reply clearly accepts that offer. A bare approval of the branch or status leaves it unassigned.
 - **Scope** — if they didn't engage with your summary, ask before writing code. Silence isn't agreement that you understood the ticket.
 
 When something is genuinely ambiguous, do Step 4 (the branch — local, reversible, and clearly implied by "go ahead") and then ask the one outstanding question rather than stalling the whole workflow or assuming your way through it.
@@ -378,9 +392,9 @@ When something is genuinely ambiguous, do Step 4 (the branch — local, reversib
 
 The moment the user replies, your **next three actions** are Step 4, then Step 5, then Step 6, with nothing in between. Before you read, search, or edit **any** project file, all three must be done:
 
-- [ ] **Step 4** — branch created or switched to
-- [ ] **Step 5** — ticket moved to In Progress
-- [ ] **Step 6** — estimate set (or explicitly declined)
+- [ ] **Step 4** — branch created or switched to, with `{TARGET}` recorded
+- [ ] **Step 5** — approved assignment applied (or explicitly declined), then ticket moved to In Progress
+- [ ] **Step 6** — estimate kept, changed, set, or explicitly declined
 
 **These are setup, not finalisation.** Do not treat Steps 4–6 as bookkeeping to tidy up once the fix is written. Observed failure: an agent diagnosed the bug, wrote the fix, and only then said *"now let's set up the branch, transition the ticket, and set the estimate before I finalize"* — running all three correctly, but after the work. That ordering is wrong even when every individual step succeeds.
 
@@ -405,21 +419,23 @@ If you realise you've written code before completing Steps 4–6, don't quietly 
 
 ## Step 4 — Git Branch Setup
 
-Let `{BASE}` be the confirmed target branch (normally `git.integrationBranch`), `{type}` the confirmed branch prefix, and `{TICKET-KEY}` the full ticket key as given.
+Let `{TARGET}` be the authoritative target branch confirmed in Step 3, `{type}` the confirmed branch prefix, and `{TICKET-KEY}` the full ticket key as given.
 
 ### Flow A: New branch from the integration branch
 
 ```bash
-git checkout {BASE}
-git pull origin {BASE}
+git fetch origin {TARGET}
+git checkout {TARGET}
+git merge --ff-only origin/{TARGET}
 git checkout -b {type}/{TICKET-KEY}
 ```
 
 ### Flow B: New branch from an epic branch
 
 ```bash
-git checkout {epic-branch-name}
-git pull origin {epic-branch-name}
+git fetch origin {TARGET}
+git checkout {TARGET}
+git merge --ff-only origin/{TARGET}
 git checkout -b {type}/{TICKET-KEY}
 ```
 
@@ -428,9 +444,12 @@ git checkout -b {type}/{TICKET-KEY}
 If it exists on the remote (`remoteOnly` or both):
 
 ```bash
+git fetch origin {existing-branch-name}
 git checkout {existing-branch-name}
-git pull origin {existing-branch-name}
+git merge --ff-only origin/{existing-branch-name}
 ```
+
+If the fast-forward fails, stop and show ahead/behind state. Never create an incidental merge commit or begin a rebase during ticket setup.
 
 If it's local only (`localOnly: true`), skip the pull — there's no upstream yet:
 
@@ -442,16 +461,21 @@ Say which case applied, so an absent `git pull` doesn't look like an omission.
 
 ### Branch naming
 
-Follow the convention the scan observed in `git.branchNaming`, not a hardcoded one. Typical shapes:
+Follow the convention the scan observed in `git.branchNaming`, not a hardcoded one. This workflow supports **one Jira ticket per branch**:
 
-- `{type}/{TICKET-KEY}` — one ticket, e.g. `feature/PROJ-1234` or `fix/PROJ-1234`
-- `{type}/{KEY-1}/{KEY-2}/{KEY-3}` — several related tickets handled in one branch, e.g. `fix/PROJ-4861/PROJ-4862/PROJ-4863`
+- `{type}/{TICKET-KEY}` — e.g. `feature/PROJ-1234` or `fix/PROJ-1234`
+
+If the user asks to combine several tickets, stop and use separate branches or explicitly design a multi-ticket close flow first. `close-ticket` updates one Jira issue, one comment and one worklog; pretending a multi-key branch is fully supported would update only one ticket.
 
 Use lowercase for the `{type}` segment. Match the ticket key's own casing (`git.branchNaming.ticketKeyCase` tells you what the repo does). Keep the prefix from the actual ticket key — never substitute a different one.
 
-## Step 5 — Move the Ticket to In Progress
+## Step 5 — Assign (when approved), then Move the Ticket to In Progress
 
-Right after the branch is created (immediately following Step 4, before any code investigation or changes), act on the consent gathered in Step 3.
+Right after the branch is created (immediately following Step 4, before any code investigation or changes), act on the separate assignment and transition consents gathered in Step 3.
+
+**Assignment is an explicit action, not an offer that can be forgotten.** If the ticket was unassigned and the user approved assignment, call `editJiraIssue` with the authenticated user's account ID before transitioning, then report the resulting assignee. If assignment fails, report it and ask whether to continue; never claim it succeeded. If they declined, leave it unassigned and say so. If it was already assigned, do nothing.
+
+Then handle the status transition below.
 
 **Never guess transition names.** They vary per project — "Start Progress", "In Development", "Start work", "Begin". Always read the available transitions first.
 
@@ -595,6 +619,18 @@ Then wait. The point isn't ceremony; it's that a wrong approach caught in one me
 
 **If the change grows while you're in it** — you start with one file and find it needs six — stop and say so rather than pressing on. That's the moment the estimate and possibly the scope stopped being accurate, and the user should know while it's still cheap.
 
+### Required validation evidence (before self-review)
+
+After implementation, validate the actual changed behavior and keep a compact evidence block for the wrap-up:
+
+- **Diagnostics/type check** — run IDE diagnostics or the narrowest type-check command; record command/tool and result.
+- **Targeted tests** — run the smallest relevant test set for changed behavior; record command and result, or why no applicable test exists.
+- **Lint** — run the narrowest relevant `commands.lint`; record command and result.
+- **Smoke test** — perform the Step 8 path when applicable, or state why it could not be run.
+- **Build** — only when the change requires it or the user asks; otherwise state that it was deferred to CI.
+
+Every skipped check stays visible. Do not replace evidence with "verified" or "lint passes" without naming what ran.
+
 ## Step 9.6 — Self-review before offering to wrap up
 
 Once the change is written and verified, do this before saying anything about
@@ -620,8 +656,10 @@ workflow failing to do its own job.
 
 3. **If they say yes, apply it against the actual diff** (`git diff`), not from
    memory of what you changed. Only the items relevant to the files you
-   touched. Fix anything it catches inline, same as a lint fix, and mention
-   what it caught when you report back.
+   touched. If it changes anything, re-run every affected validation check from
+   the evidence block above and report the updated diff/evidence before offering
+   wrap-up again. A checklist result never authorizes committing bytes the user
+   has not seen.
 4. **If nothing describes itself that way, say so — don't skip silently.** Fold
    a one-line "checked {where you looked}, nothing found describing itself as a
    review checklist" into the same wrap-up message from Step 10, then ask the
@@ -668,33 +706,33 @@ Then wait. If the user explicitly asks you to commit and push in the same breath
 
 ## Quick Reference
 
-`{BASE}` = `git.integrationBranch` from the scan. `{type}` = a prefix from `git.branchNaming.dominantPrefixes`.
+`{TARGET}` = the existing MR/PR base or the branch explicitly confirmed in Step 3. `git.integrationBranch` is only a candidate when no stronger target evidence exists. `{type}` = a prefix from `git.branchNaming.dominantPrefixes`.
 
 | Step | Action |
 | --- | --- |
 | 0. Scan | `get_project_profile` — branch names, commit format, package manager, hooks |
 | 1. Validate | URL/key actually an Atlassian issue reference? Read failed (404/permission)? → **stop**, don't guess a variant |
-| 1. Read ticket | Resolve `cloudId`, then **`getJiraIssue` with `parent` in `fields`** — `fetch`/`search` cannot return a parent, so using them means you don't know whether an epic exists |
+| 1. Read ticket | Resolve `cloudId`, then **`getJiraIssue` with `fields: ["*all"]`, `expand: "names"`**. Resolve direct parent → epic with a bounded lookup; use display-name-based Epic Link only as a verified fallback |
 | 1. Sanity-check | Assignee vs current user (`atlassianUserInfo`) → flag if someone else's, offer to assign if unassigned. Status category `done` → **stop**; `indeterminate` under another name → **stop** |
 | 2.1 Existing branches | Re-scan with `ticket_keys: [ticket, epic]` — never create a duplicate branch |
-| 2.2 Branch state | Check current branch, flag prefix mismatch, dirty tree, detached HEAD |
-| 3. Confirm | Branch type + target (epic-aware) + **time estimate** + In Progress consent + scope, in one message |
-| 4. Branch | Create from `{BASE}` or epic branch |
-| 5. In Progress | `getTransitionsForJiraIssue` → transition, two hops if needed, report failures — right after branch creation, before touching code |
-| 6. Estimate | `editJiraIssue` with `timetracking.originalEstimate` — right after branch creation, before touching code. **If one already exists, ask keep-or-change in Step 3, don't just propose a fresh number; skip the API call if kept as-is** |
+| 2.1.1 Target | Existing MR/PR base wins; new branch uses the confirmed base; existing branch without an MR/PR requires the user to confirm `{TARGET}` |
+| 2.2 Branch state | Check current branch, prefix mismatch, dirty tree and detached HEAD. Dirty tree → stay/end or named stash; never carry it across |
+| 3. Confirm | Branch type + authoritative target + **time estimate** + separate In Progress and assignment consent + scope, in one message |
+| 4. Branch | Fetch `{TARGET}`, fast-forward only, then create/switch. Stop on divergence; never merge/rebase implicitly |
+| 5. Assign + In Progress | Apply approved assignment explicitly, then `getTransitionsForJiraIssue` and transition; report failures before touching code |
+| 6. Estimate | Keep, change, set, or explicitly decline `timetracking.originalEstimate`; never confuse planned estimate with a worklog |
 | 7. Checklist | Files, designs, dependencies, API needs |
 | 8. Navigation | Only when there's a reachable screen |
 | 9. Spec | Only for complex tickets — **propose it, don't create it unasked** |
-| 9.5 Plan | Trivial change: just do it. Multi-file, shared code, new/deleted files, or a judgement call: show the plan and wait |
-| 9.6 Self-review | Search for a review checklist by **description**, not filename — don't wait for the user to point one out. Found → fold the offer into the wrap-up question |
+| 9.5 Plan + validate | Show non-trivial implementation plan; capture diagnostics, targeted tests, lint, smoke-test and build evidence |
+| 9.6 Self-review | Discover review guidance by description. Checklist mutations require affected validation and the updated diff to be shown again |
 | 10. Stop | Implement, then hand back. **No commit, push, MR, review transition or worklog** — that's `close-ticket`, invoked by the user |
 
 | Scenario | Branch from | Branch name | Merge to |
 | --- | --- | --- | --- |
-| New feature, no epic | `{BASE}` | `feature/{TICKET-KEY}` | `{BASE}` |
-| Bug fix, no epic | `{BASE}` | `fix/{TICKET-KEY}` | `{BASE}` |
-| Feature under epic | epic branch | `feature/{TICKET-KEY}` | epic branch |
-| Multiple related fixes | epic or `{BASE}` | `fix/{KEY-1}/{KEY-2}/{KEY-3}` | epic or `{BASE}` |
-| Continue existing work | existing branch | (already named) | as originally planned |
+| New feature, no epic | `{TARGET}` | `feature/{TICKET-KEY}` | `{TARGET}` |
+| Bug fix, no epic | `{TARGET}` | `fix/{TICKET-KEY}` | `{TARGET}` |
+| Ticket under active epic | `{TARGET}` (confirmed epic branch) | `{type}/{TICKET-KEY}` | `{TARGET}` |
+| Continue existing work | existing branch | (already named) | existing MR/PR base, or user-confirmed `{TARGET}` |
 
-`{TICKET-KEY}` always uses the prefix from the actual ticket — never a hardcoded project.
+This workflow supports one Jira ticket per branch. `{TICKET-KEY}` always uses the prefix from the actual ticket — never a hardcoded project.

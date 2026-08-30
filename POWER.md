@@ -102,13 +102,13 @@ The `project-scanner` MCP server provides:
 
 Both `new-ticket` and `close-ticket` call this tool at the start of their workflow instead of guessing at project conventions.
 
-**Note:** the [`gitlab-mr-review`](https://github.com/yf-tools/gitlab-mr-review) power's `mr-comments` skill also calls this tool when it's installed, for the same reason — but it's a separate power, since working through an existing MR's review comments isn't a Jira-ticket-specific task.
+**Note:** `gitlab-mr-review` is deliberately standalone and does not call this scanner or depend on this power.
 
 ## Best Practices
 
 - Always call `get_project_profile` once at the start of a ticket workflow, before assuming any package manager, branch name, or commit format
 - Nothing project-specific is hardcoded: the Jira prefix comes from the actual ticket key, and the package manager, integration branch, branch prefixes, commit format and Git host all come from the scan
-- Branch from `git.integrationBranch` rather than a hardcoded `develop` or `main` — those differ in Git Flow repos, which is the case that silently branches off the wrong base
+- Treat `git.integrationBranch` as a candidate, not proof of intent. Existing MR/PR base wins; otherwise use the epic-aware target explicitly confirmed with the user and preserve that `{TARGET}` through review and MR creation
 - Treat `null` scan fields as "not detected" and ask the user, rather than falling back to a default
 - Ask for explicit confirmation before any Jira status transition — never transition automatically
 - Ask before discarding uncommitted work. The only destructive step in these workflows (reverting local-only lint config) requires showing the diff and getting per-file confirmation first

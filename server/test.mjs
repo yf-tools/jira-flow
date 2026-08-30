@@ -1182,9 +1182,51 @@ function testNoDuplicateSources() {
   );
 }
 
+function testWorkflowPolicyContracts() {
+  const skills = resolve(__dirname, "..", "skills");
+  const start = readFileSync(join(skills, "new-ticket", "SKILL.md"), "utf8");
+  const close = readFileSync(join(skills, "close-ticket", "SKILL.md"), "utf8");
+
+  for (const phrase of [
+    "fields: [\"*all\"]",
+    "Original estimate",
+    "merge --ff-only",
+    "Required validation evidence",
+    "Assignment is an explicit action",
+    "Assignment consent",
+    "Epic Link",
+    "Stay here and end ticket setup",
+    "one Jira ticket per branch",
+  ]) truthy(`new-ticket: policy contains ${phrase}`, start.includes(phrase));
+
+  for (const phrase of [
+    "authoritative `{TARGET}`",
+    "git fetch origin {TARGET}",
+    "git diff origin/{TARGET}...HEAD",
+    "2.2.1 — Run validation before the approval gate",
+    "loop back through the definitive staged review",
+    "Never write or disclose it",
+    "Never re-default to `git.integrationBranch`",
+  ]) truthy(`close-ticket: policy contains ${phrase}`, close.includes(phrase));
+
+  falsy("new-ticket: estimate is not mislabeled as logged", start.includes("5h already logged"));
+  falsy("new-ticket: dirty work cannot ride through checkout", start.includes("**Leave them**"));
+  falsy("new-ticket: stale BASE alias removed", start.includes("`{BASE}`"));
+  falsy("new-ticket: multi-ticket branches are not advertised", start.includes("Multiple related fixes"));
+  falsy("close-ticket: no target re-default", close.includes("default to `git.integrationBranch`"));
+  falsy("close-ticket: no MR disclosure for no-verify", close.includes("say plainly in the MR description"));
+
+  const validation = close.indexOf("### 2.2.1 — Run validation before the approval gate");
+  const stagedReview = close.indexOf("### 2.3 — Stage first");
+  const commit = close.indexOf("## Step 3 — Commit");
+  truthy("close-ticket: validate before staged approval", validation >= 0 && validation < stagedReview);
+  truthy("close-ticket: staged approval before commit", stagedReview >= 0 && stagedReview < commit);
+}
+
 // ---------- Runner ----------
 
 const suites = [
+  ["workflow policy contracts", testWorkflowPolicyContracts],
   ["tool schema", testToolSchema],
   ["full monorepo fixture", testFullFixture],
   ["AGENTS.md only (tier 2)", testAgentsMdOnly],

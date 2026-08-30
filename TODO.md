@@ -5,7 +5,17 @@ dropped rather than struck through — `git log` is the record.
 
 ## Blocking
 
-### 1. Test `new-ticket` end to end — mostly done, two gaps remain
+### 1. Real-ticket acceptance pass for the hardened workflows
+
+Automated contract coverage now guards the screenshot-derived regressions: existing estimates must be shown as planned estimates (not logged time), checklist discovery must be visible, checklist edits require re-stage/re-review, one authoritative MR target drives every diff and MR proposal, validation evidence is explicit, and `--no-verify` is never disclosed remotely.
+
+Still requires the user's controlled real-ticket acceptance run because agent behavior cannot be proven completely from Markdown policy tests:
+
+- `new-ticket`: existing estimate; unassigned issue; subtask → Story → Epic ancestry; existing branch with no existing MR target
+- `close-ticket`: checklist changes a file and forces a second staged review; validation evidence; epic target preserved; private `--no-verify`
+- `gitlab-mr-review`: multiple threads plus general comment; private `--no-verify`; conflicting title/branch Jira keys before worklog
+
+### 2. Jira workflow transition edge cases
 
 A full run against a real ticket (BIDAYA-2084) exercised Steps 1–10 successfully:
 ticket validation, assignee/status checks, branch creation, the In Progress

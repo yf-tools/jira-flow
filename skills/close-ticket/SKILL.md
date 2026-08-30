@@ -48,11 +48,23 @@ Keep the resolved `cloudId` and the ticket's browse URL for use in Steps 5, 6 an
 
 **If the user gave a URL or key, check it's actually an Atlassian issue reference first** — shape `https://{site}.atlassian.net/browse/{PREFIX}-{NUMBER}`, or a bare `{PREFIX}-{NUMBER}`. A board view, filter, Confluence page, or a key-shaped string that isn't a ticket (`UTF-8`, `HTTP-404`) is not something to extract a key from. 🛑 Stop and ask rather than acting on a partial match.
 
-**Then read the ticket and check it's yours to close.** You're about to comment on it and move it on the board, so it's worth one `getJiraIssue` call plus one `atlassianUserInfo`:
+**Then read the ticket and check it's yours to close.** You're about to comment on it and move it on the board, so use `getJiraIssue` with `fields: ["*all"]` and `expand: "names"`, plus `atlassianUserInfo`. Rebuild the decision-relevant context (assignee/status, hierarchy, links, acceptance criteria and `timetracking`) rather than relying on stale values from `new-ticket`.
 
 - **Read failed (404 / permission)** — 🛑 **Stop.** Wrong key or wrong site. Don't retry with a guessed variant; say what you tried and ask.
 - **Assigned to someone else** — ⚠️ **Flag it.** *"`PROJ-420` is assigned to {name}, not you — I'm about to comment and transition it. Flagging in case that's not the ticket you meant."* Continue unless they correct you.
 - **Already in a `done` category** (`Done`, `Merged`, `Closed`) — 🛑 **Stop** before Step 6 tries to transition it again. Say so and ask whether the work should go somewhere else, or whether this is the wrong ticket.
+
+### Establish the authoritative `{TARGET}` before reviewing any diff
+
+Check for an existing open MR/PR for the current branch now, not after commit/push:
+
+1. Existing MR/PR → its target/base is authoritative.
+2. No MR/PR, same session as `new-ticket`, and the branch was created there → reuse the explicitly confirmed `{TARGET}`.
+3. Otherwise → ask the user to confirm the target. `git.integrationBranch` is only a proposal; branch existence and merge-base heuristics do not prove intent.
+
+Use this one `{TARGET}` for every comparison, staged summary, MR/PR proposal and final report. Never review against `develop` and later create an MR to an epic branch.
+
+Before any target-relative diff, refresh the authoritative remote ref with `git fetch origin {TARGET}` and compare against `origin/{TARGET}`. If `{TARGET}` intentionally has no remote ref, verify that explicitly and use the named local ref; never silently compare against a stale local branch.
 
 The fields this workflow depends on:
 
@@ -60,7 +72,7 @@ The fields this workflow depends on:
 | --- | --- |
 | `git.currentBranch` | Step 1 branch verification |
 | `git.currentBranchTicketKey` / `currentBranchProjectPrefix` | Detecting a ticket/branch mismatch |
-| `git.integrationBranch` | The diff base and MR/PR target |
+| `git.integrationBranch` | Candidate target when no existing MR/PR or confirmed epic target exists; Step 0 establishes authoritative `{TARGET}` before diff review |
 | `git.commitConvention.suggestedFormat` | The commit message shape this repo actually uses |
 | `git.isDirty` | Whether there's anything to commit |
 | `gitHooks.preCommitContent` / `prePushContent` | What the hooks will run, so you can pre-empt them |
@@ -89,7 +101,7 @@ just carry on to the push.
 Say so, then run the Step 2 checks against the committed changes instead of the
 working tree:
 
-- `git show --stat HEAD` and `git diff {git.integrationBranch}...HEAD` in place of
+- `git show --stat HEAD` and `git diff origin/{TARGET}...HEAD` (or the explicitly verified local-only `{TARGET}` ref) in place of
   a staged diff
 - Look for linter/formatter config and anything secret-shaped **in the commits**,
   not just uncommitted files
@@ -180,9 +192,7 @@ A steering file marked `inclusion: manual` isn't already in your context the way
 always-included one is — reading it here explicitly is the only way you'll see it,
 which is exactly the case this fallback exists for.
 
-If the checklist catches something: fix it inline (same as a lint fix) and mention
-it in the Step 2.3 staged review as "caught by project checklist" so the user
-knows it fired.
+If the checklist catches something, fix it inline and then **loop back through the definitive staged review**: re-stage changed files, rerun the staged formatter when relevant, rerun affected validation checks, show the new `git diff --cached`, and wait for approval again. The first approval covered the old bytes, not the checklist-modified result.
 
 **This search always produces a visible line in Step 2.3 — never skip reporting
 it, even when nothing was found.** A silent pass is indistinguishable from a
@@ -231,6 +241,18 @@ Run `git status` and check for:
 
 Don't strip these silently — some are deliberate. List what you found with file and line, say which look accidental, and let the user decide. A `debugger` reaching review is embarrassing; a bypassed auth guard reaching `develop` is a real problem.
 
+### 2.2.1 — Run validation before the approval gate
+
+Validate the actual ticket changes before staging the definitive review set:
+
+- Run IDE diagnostics or the narrowest type-check that covers the changed code.
+- Run the narrowest relevant tests for changed behavior.
+- Run the affected lint command.
+- Perform the navigation/smoke path from `new-ticket` when applicable.
+- Run a build only when required by the change or requested; otherwise record `deferred to CI`.
+
+Record each tool/command and result. If a check is unavailable or not applicable, keep that visible with the reason. Any formatter or checklist mutation after this point must re-run every affected check before the user is asked to approve again.
+
 ### 2.3 — Stage first, then review what will actually be committed
 
 **Order matters here.** Reviewing before staging means the user approves a set of *changes*, then you separately decide which *files* to commit — so the thing they approved isn't the thing that gets committed. Stage first, then show them the staged result.
@@ -247,10 +269,20 @@ Don't strip these silently — some are deliberate. List what you found with fil
 ```bash
 git diff --cached --stat                         # exactly what will be committed
 git status --short                               # what is deliberately left out
-git diff {git.integrationBranch}...HEAD --stat   # anything already committed on this branch
+git diff origin/{TARGET}...HEAD --stat   # anything already committed on this branch; use verified local ref only when target has no remote
 ```
 
 Then list the staged files plainly, say what each change does, and explicitly name anything you left unstaged and why — an omission is as much a decision as an inclusion, and it's the harder one for the user to spot.
+
+Include a mandatory **Validation evidence** block in the same presentation:
+
+- Diagnostics/type check — command/tool and result, or why unavailable
+- Targeted tests — narrowest relevant command and result, or why not applicable
+- Lint — command and result
+- Smoke test — result or why it could not run
+- Build — result when required, otherwise `deferred to CI`
+
+Every skipped check remains visible and the MR/PR Testing section must make the same claims — never more.
 
 **Always include a review-checklist line in this presentation — this is not optional and not conditional on finding something.** One of:
 
@@ -342,8 +374,11 @@ decision to the user rather than picking silently:
 
 Default to (a) or (b). **Never choose (c) on your own** — a hook that exists
 because someone wanted it enforced shouldn't be bypassed by a tool acting alone.
-If the user picks (c), say plainly in the MR description that pre-push checks
-were skipped, so review isn't misled.
+If the user explicitly picks (c), use `--no-verify` privately as execution detail
+only. **Never write or disclose it in the MR/PR title, description, comments,
+threads, Jira comment, or any other remote text.** In the Testing section, list
+only checks that actually ran; leave other boxes unticked without naming the
+private push option.
 
 **Warn about the timeout when you present the options.** If `prePushContent` runs
 production builds, option (a) will very likely exceed the command timeout available
@@ -422,7 +457,7 @@ Only continue below when there's genuinely no MR/PR yet.
 
 The power creates the MR/PR directly rather than handing over a link. But first, **confirm everything with the user in one message**. Present:
 
-1. **Target branch** — default to `git.integrationBranch` (or the epic branch if the ticket branched off one). State it and ask for confirmation or override.
+1. **Target branch** — use the authoritative `{TARGET}` established in Step 0. Present that exact value and its provenance (existing MR/PR base, same-session confirmation, or fresh user confirmation). Never re-default to `git.integrationBranch` here.
 2. **Title** — propose one matching the commit convention: `{type}({TICKET-KEY}): short description`
 3. **Description** — **use the repo's own template if it has one.** Check `mrTemplate` in the scan first.
 
@@ -826,9 +861,11 @@ skim past, a short list of labeled facts isn't.
 | --- | --- |
 | 0. Scan | `get_project_profile` **fresh** (never reuse an earlier profile — the branch has changed) + resolve `cloudId`, which Step 5 also needs |
 | 0. Validate | URL/key actually an Atlassian issue reference? Read failed → **stop**. Assigned to someone else → flag. Already `done` category → **stop** |
+| 0. Target | Existing MR/PR base wins; otherwise reuse same-session confirmation or ask. Fetch `origin/{TARGET}` before every target-relative diff and never re-default later |
 | 1. Verify branch | **Branch's ticket key ≠ the key the user named → stop**, you can't tell which is wrong. Then state the branch; ask only if it's wrong, a different prefix, or detached. Handle work already committed outside this skill |
 | 2.1 Local-only config | Show the diff, get per-file confirmation before discarding anything |
 | 2.2 Leftovers | Unstaged files, local tooling, specs to include, debug leftovers, anything secret-shaped |
+| 2.2.1 Validate | Run diagnostics/type-check, targeted tests, lint and applicable smoke test; build when required. Record exact evidence and reasons for skips |
 | 2. Checklist | Scanner's `checklistContent` first; if empty, judge candidates by their **description**, not filename. Found one → name it and offer it in 2.3, don't apply silently. **Always report the outcome as a line in 2.3, even "nothing found" — never silent** |
 | 2.3 Stage → review | **Stage first, format, then show `git diff --cached`.** 🛑 Wait for the user before Step 3 |
 | 3. Commit | Show the message, wait, then commit per `commitConvention.suggestedFormat`. Terminal git, not MCP tools |
