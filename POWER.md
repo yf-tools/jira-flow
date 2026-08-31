@@ -30,7 +30,11 @@ Activate this power **before responding** whenever a message contains any of:
 - An Atlassian issue URL, e.g. `https://<site>.atlassian.net/browse/KEY-123`
 - Intent phrases: "start ticket", "new ticket", "start working on", "close ticket", "wrap up", "done with this ticket", "create an MR", "create a PR"
 
-A message that is **only** a ticket key or issue URL, with no other text, means _"start working on this ticket"_ — read `skills/new-ticket/SKILL.md` and run that workflow. Do not just summarize or fetch the link.
+This activates **regardless of what else is in the message.** A bare key or URL with no other text means "start working on this ticket." A key or URL bundled with a bug description, screenshots, before/after images, or annotations ("image 1 = wrong, image 2 = correct") means exactly the same thing — the accompanying material is context for the ticket, not a separate request to investigate directly. **This combined shape — URL + description + screenshots — is the normal, common case, not an edge case**, and it must not be read as "the user wants me to skip the workflow and go straight to debugging." All of it gets folded into Step 1's ticket summary and Step 3's scope confirmation; the branch/questions/transition steps still happen before any code is touched.
+
+**Mechanical requirement, not a suggestion.** `kiro_powers activate` returns skill *names* only — it does not return their step-by-step content. Immediately after activating this power, call `kiro_powers readSkill` with `skillName: "new-ticket"` (starting work) or `skillName: "close-ticket"` (finishing work), and follow it from Step 0. Do this **before** fetching the ticket, searching the codebase, or writing any code.
+
+This is the single most common failure mode observed in practice: the agent calls `activate`, sees the power matched, and — without ever calling `readSkill` — goes straight to fetching the ticket, investigating the code, and implementing the fix. Every gate the skill exists to enforce (branch setup, the Step 3 confirmation questions, the Jira status transition, the time estimate) gets silently skipped, because the workflow document describing them was never actually loaded into context. `activate` succeeding is not evidence that the workflow was read.
 
 Route to `new-ticket` for starting work, `close-ticket` for finishing work.
 

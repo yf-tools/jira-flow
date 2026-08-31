@@ -162,6 +162,13 @@ A bare key or URL means "start working on this ticket" and triggers the
 `new-ticket` workflow. To finish up, say "close ticket", "wrap up", or "create an
 MR".
 
+**If the agent goes straight to fetching the ticket or writing code** without
+creating a branch, asking about scope/estimate/branch type, or moving the
+ticket to In Progress, it activated the power but skipped reading the skill
+content (`kiro_powers readSkill`). That call is mandatory before Step 1 of
+either workflow — see [POWER.md](POWER.md#when-to-activate). If you see this
+happen, say so; it means the agent short-circuited the workflow.
+
 To work through review feedback on an MR that already exists, install the
 separate [`gitlab-mr-review`](https://github.com/yf-tools/gitlab-mr-review)
 power — that's a distinct task from the Jira ticket lifecycle this power

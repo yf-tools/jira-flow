@@ -9,6 +9,8 @@ When the user says they want to start working on a ticket (or mentions a Jira ti
 
 **Bare URL or bare key with no other text.** If the user's entire message is just a Jira/Atlassian issue URL or a ticket key with no accompanying instruction, treat it as "start working on this ticket" by default — fetch the issue and begin this workflow, rather than just describing the link.
 
+**URL or key WITH extra content — same workflow, not a shortcut.** A ticket key/URL alongside a bug description, screenshots, before/after images, or annotations ("1st image = wrong, 2nd = correct") is the common case in practice, not the exception. Treat it as "start working on this ticket, and here's extra detail for it" — never as an implicit instruction to skip straight to investigating the code. The extra text and images become part of the Step 1 ticket summary (they usually clarify or supplement acceptance criteria) and get referenced again in Step 3's scope confirmation; they do not replace Steps 2–6. If you catch yourself moving directly to codebase investigation because the message "already told you what's wrong," stop — that's this exact failure mode.
+
 **Follow the steps in order.** Steps 1 and 2 gather everything needed so that Step 3 can ask all its questions in a single round trip. Don't ask the user anything before you've read the ticket and checked the branch state — you can't recommend a branch type without knowing whether the ticket is a bug or a feature.
 
 **The ordering that matters most is after Step 3.** Once the user answers, Steps 4 (branch), 5 (approved assignment, then In Progress) and 6 (estimate) run immediately and in that order, before any code is read or written. This is the step most often skipped, particularly when the user's answer arrives with screenshots or new requirements attached — see the checkpoint at the end of Step 3.
@@ -255,7 +257,7 @@ Always show the user what branch they're on before proceeding.
 
 ### Presenting branch state
 
-Mark each line so problems stand out from confirmations at a glance:
+**Every bullet gets its own leading icon — no exceptions, and no icon on the section header instead.** Putting a single ⚠️ on the heading and leaving the bullets underneath unmarked defeats the entire point: the reader has to read every line to find the problem instead of scanning icons. Repeat the icon on each line even when several lines in a row share the same one.
 
 > **Branch state**
 >
@@ -263,6 +265,12 @@ Mark each line so problems stand out from confirmations at a glance:
 > - ✅ Working tree: clean
 > - ➕ Existing branch for PROJ-625: none, will create
 > - ➖ Epic PROJ-300 branch: none, so `develop` is the base
+
+When a single finding needs more than one line of explanation (e.g. a dirty tree whose changes turn out to overlap the ticket's own scope), keep the icon on the first line and indent the continuation as a sub-bullet **without its own icon** — the icon marks the finding, not every line of prose about it:
+
+> - ⚠️ Working tree: dirty — uncommitted changes already implement part of this ticket's scope:
+>   - `payment-card.component.ts`: new `showAutoPay` input
+>   - `payment.locales.ts`: new translation keys
 
 Use ✅ when something is as it should be, ⚠️ when it needs the user's attention, ➕ for something that will be created, ➖ for a legitimate absence. A block of all ✅ tells the user at a glance there's nothing to think about; one ⚠️ in it is impossible to miss. Never mark a real problem with ✅ to make the summary look tidy.
 
@@ -272,13 +280,13 @@ Do NOT create branches, write code, or change anything until these are answered.
 
 ### Presenting the summary
 
-Lead with a one-line header so the important facts are scannable without reading a table:
+Lead directly with the one-line emoji header below — **no generic heading like "Ticket summary" above it.** The emoji line already announces what this is; a label above it is redundant weight in a message that's already long.
 
 > 🐛 **PROJ-625** · 🟡 Medium · ⚪ To Do · 🎯 Epic PROJ-300
 >
 > The "Get help signing in" button does nothing when a user selects to connect their bank.
 
-Then the detail:
+Then the detail. **This is a fixed template, not an example to riff on.** Use exactly these row labels, in exactly this order, and no others — never substitute a row you think is more useful (e.g. `Related`, `Steps to reproduce`) for one in this list, and never fold three distinct fields into one row (`Original estimate`, `Time logged`, and `Remaining estimate` are three separate rows even when only one has a value):
 
 | | |
 | --- | --- |
@@ -295,7 +303,11 @@ Then the detail:
 | **Components** | Web, Authentication |
 | **Fix version** | 4.8.0 |
 
-Follow the table with short sections for **Acceptance criteria**, **Dependencies**, and **Attachments** when present. For attachments, state `inspected` or `not inspected`; listing a filename is not the same as understanding its content.
+The one-line emoji header above compresses Type/Priority/Status/Epic for scannability — it does **not** replace this table. Every field the header shows in shorthand still gets its own full row here, including **Parent**, which the header omits.
+
+Additional information that doesn't fit one of these twelve rows (steps to reproduce, related/linked issues, environment) goes in its own short section **below** the table, titled with what it is — never smuggled into the table as an invented row.
+
+Follow the table with short sections for **Acceptance criteria**, **Dependencies**, and **Attachments** when present — as their own sections, never as table rows. For attachments, state `inspected` or `not inspected`; listing a filename is not the same as understanding its content.
 
 When the assignee isn't the current user, mark the row so it can't be skimmed past — `⚠️ Unassigned` or `⚠️ Sam Patel (not you)` — rather than stating the name flatly as though it were expected. Same for a status that isn't in the `new` category on a ticket you're starting fresh.
 

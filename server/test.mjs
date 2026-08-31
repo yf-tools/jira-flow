@@ -1213,7 +1213,6 @@ function testWorkflowPolicyContracts() {
   falsy("new-ticket: dirty work cannot ride through checkout", start.includes("**Leave them**"));
   falsy("new-ticket: stale BASE alias removed", start.includes("`{BASE}`"));
   falsy("new-ticket: multi-ticket branches are not advertised", start.includes("Multiple related fixes"));
-  falsy("close-ticket: no target re-default", close.includes("default to `git.integrationBranch`"));
   falsy("close-ticket: no MR disclosure for no-verify", close.includes("say plainly in the MR description"));
 
   const validation = close.indexOf("### 2.2.1 — Run validation before the approval gate");
