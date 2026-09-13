@@ -137,6 +137,12 @@ Then compare `git.currentBranch` against the ticket being closed:
 
 ## Step 2 — Pre-Commit Checklist
 
+**Check there's actually something to close before running the checklist below.** If `git.isDirty` is false (or a fresh `git status --porcelain` confirms it now) and the branch has no commits ahead of `{TARGET}` either, there's nothing for this skill to do. Don't run 2.1–2.3 against an empty diff and don't invent something to check. Say so plainly and ask what they expected — a clean tree with nothing pushed usually means the wrong branch, an already-closed ticket, or a session that never actually implemented anything:
+
+> There's nothing to close on `{currentBranch}` — the tree is clean and there's nothing ahead of `{TARGET}`. Is this the wrong branch, or did you expect changes here?
+
+Wait for an answer rather than treating a clean tree as an implicit "we're done, move on to Jira." A clean tree with no unpushed work should stop the workflow, not skip quietly through the rest of it.
+
 Inspect first (2.1, 2.2 — read-only), then stage and review (2.3). Nothing here
 commits; that's Step 3, and it only runs once the user has approved what's staged.
 
@@ -187,6 +193,18 @@ conventions:
 Fold that offer into the **Step 2.3 staged review**, which is already a blocking
 gate — one decision point for the user instead of two. If they say yes, apply it and
 report what it found; if they decline, note that and move on.
+
+**Do not resolve this offer yourself before folding it in.** The checklist offer
+and the Step 2.3 review belong together, in one presentation, with one reply
+covering both — that's the entire reason to fold rather than ask twice. What's
+forbidden is asking the checklist question on its own first, answering it
+yourself with the generic 2.2 checks ("I did a quick pass myself"), and only
+then presenting Step 2.3 as if that stood in for the user's answer. "Otherwise
+I'll proceed to the summary," followed immediately by the summary in the same
+breath, is not the user replying — it's the question and a self-supplied answer
+written in the same turn. Put the named checklist's status as an open line
+inside the Step 2.3 presentation itself (per the "found and offered" wording
+above) and let its one closing question cover it.
 
 A steering file marked `inclusion: manual` isn't already in your context the way an
 always-included one is — reading it here explicitly is the only way you'll see it,
@@ -286,7 +304,8 @@ Every skipped check remains visible and the MR/PR Testing section must make the 
 
 **Always include a review-checklist line in this presentation — this is not optional and not conditional on finding something.** One of:
 
-- `Review checklist: found {name}, {applied it / you declined}. {what it caught, if anything}`
+- `Review checklist: found {name} — its description says {what it's for}. Want me to check the staged diff against it before you approve this?` — use this **open-question** form the first time a resource is found and this is the first Step 2.3 presentation of the run. Nothing about applying it or what it caught belongs in this line yet — those facts don't exist until the user has actually answered. The staged-diff approval question at the end of Step 2.3 covers this line too; don't answer it yourself first and then present this line as already resolved.
+- `Review checklist: found {name}, {applied it / you declined}` — use this **already-resolved** form only once the user's reply to a prior presentation actually settled it (e.g. a re-presentation after a checklist-triggered fix loop, or a carried-over result from `new-ticket` per the note above).
 - `Review checklist: checked {where}, nothing found describing itself as a review/pre-push check.`
 
 If this line is missing from what you show the user, Step 2.3 is incomplete — go back and do the search from "Project review checklist" above before presenting.
@@ -452,6 +471,15 @@ repo directory. If an MR exists:
 - Then skip to Step 6
 
 Only continue below when there's genuinely no MR/PR yet.
+
+**Don't reach for `glab_mr_view` (or `glab_mr_note`/`glab_mr_diff`/`glab_mr_approve`) to look at that existing MR.** Those MCP tools shell out assuming they're already running inside the repo, and the `glab` MCP server's actual working directory isn't — so they fail on a git check before your request is even read:
+
+```
+fatal: not a git repository (or any of the parent directories): .git
+git: exit status 128
+```
+
+**Passing `--repo`/`repo` does not help these specific tools** — the git check runs first, unconditionally, before any flag is considered. `glab_mr_list` is the one exception in this family that actually works with `repo` passed (used above); the read/write single-MR tools are not. Use `glab_api` with an explicit encoded project path instead, or the CLI (`glab mr view {iid} --output json`) from the repo directory — both used later in this step for exactly this reason.
 
 ### Then: confirm everything in one message
 
@@ -655,7 +683,7 @@ Report back:
 - The target branch, assignee, and reviewer as set
 - Whether it's a draft or ready for review
 
-Use the same markers as `new-ticket` so a run reads consistently — ✅ done as intended, ⚠️ needs attention, ➖ deliberately absent:
+Use the same marker convention as `new-ticket`'s branch-state presentation, minus `➕` (nothing here is "about to be created" the way a branch is) — ✅ done as intended, ⚠️ needs attention, ➖ deliberately absent:
 
 > ✅ **MR !487** created → https://…/merge_requests/487
 > - ✅ Target: `develop`
@@ -776,13 +804,13 @@ the user explicitly asked for that.
 1. Call `getTransitionsForJiraIssue` with the `cloudId` from Step 0 to see what's reachable **from the ticket's current status**.
 2. **Already in the review state?** Say so and skip.
 3. **Already in a `done` category** (`Done`, `Merged`, `Closed`, `Rejected`)? Don't transition it — Step 0 should have caught this, but re-check here since the ticket may have moved while you were working. Say where it is and ask what they want, rather than moving finished work backwards or sideways on your own initiative.
-3. **Direct path exists?** Use it.
-4. **No direct path?** Some workflows require an intermediate hop before review becomes reachable. When that's the case:
+4. **Direct path exists?** Use it.
+5. **No direct path?** Some workflows require an intermediate hop before review becomes reachable. When that's the case:
    - Look through the available transitions for one leading to a status from which the review state is reachable
    - Tell the user what you're doing and why: *"`{TICKET}` is in `{status}`, which has no direct transition to review. I'll move it to `{intermediate}` first, then to review."*
    - Do the first hop, call `getTransitionsForJiraIssue` **again** to confirm the second is now available, then do it
    - Don't chain more than two hops without asking. Beyond that, show the user the workflow you're seeing and let them decide.
-5. **Blocked by a set Resolution.** A reopened ticket can refuse transitions while it still carries a Resolution. **Say what you intend to do before doing it** — the user consented to a status change, not to editing other fields:
+6. **Blocked by a set Resolution.** A reopened ticket can refuse transitions while it still carries a Resolution. **Say what you intend to do before doing it** — the user consented to a status change, not to editing other fields:
 
    > `{TICKET}` won't transition because it still has Resolution `{value}` set. Clearing that should unblock it. Clear it and retry?
 
@@ -790,8 +818,8 @@ the user explicitly asked for that.
    ```
    editJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY}, fields: { "resolution": null }
    ```
-   Retry the transition once. If it still fails, go to point 6 rather than trying further field edits.
-6. **If a transition fails, surface it — never continue silently and never report success.** Report all three of:
+   Retry the transition once. If it still fails, go to point 7 rather than trying further field edits.
+7. **If a transition fails, surface it — never continue silently and never report success.** Report all three of:
    - the exact error Jira returned
    - the ticket's current status, unchanged
    - the transitions that *are* available right now
@@ -863,6 +891,7 @@ skim past, a short list of labeled facts isn't.
 | 0. Validate | URL/key actually an Atlassian issue reference? Read failed → **stop**. Assigned to someone else → flag. Already `done` category → **stop** |
 | 0. Target | Existing MR/PR base wins; otherwise reuse same-session confirmation or ask. Fetch `origin/{TARGET}` before every target-relative diff and never re-default later |
 | 1. Verify branch | **Branch's ticket key ≠ the key the user named → stop**, you can't tell which is wrong. Then state the branch; ask only if it's wrong, a different prefix, or detached. Handle work already committed outside this skill |
+| 2. Anything to close? | Clean tree and nothing ahead of `{TARGET}` → **stop and ask** what they expected, before running 2.1–2.3 against an empty diff |
 | 2.1 Local-only config | Show the diff, get per-file confirmation before discarding anything |
 | 2.2 Leftovers | Unstaged files, local tooling, specs to include, debug leftovers, anything secret-shaped |
 | 2.2.1 Validate | Run diagnostics/type-check, targeted tests, lint and applicable smoke test; build when required. Record exact evidence and reasons for skips |

@@ -380,11 +380,11 @@ Rules:
 
    Say plainly that any figure you propose is a guess made **before** reading the code — Steps 7 and 8 haven't run yet, so you have the ticket description and nothing else. The user's own number wins by default.
 
-   **"Add more time" means increasing `originalEstimate`, not logging a worklog.** `timetracking.originalEstimate` is the plan set before work starts; a worklog (Step 11 in this skill's counterpart, `close-ticket`) is time actually spent after the fact. If the user wants to bump `2h` to `5h` here, that's still a Step 6 `editJiraIssue` call against `originalEstimate` — don't route it through the worklog API by mistake.
+   **"Add more time" means increasing `originalEstimate`, not logging a worklog.** `timetracking.originalEstimate` is the plan set before work starts; a worklog (Step 7 in this skill's counterpart, `close-ticket`) is time actually spent after the fact. If the user wants to bump `2h` to `5h` here, that's still a Step 6 `editJiraIssue` call against `originalEstimate` — don't route it through the worklog API by mistake.
 4. **Moving the ticket to In Progress and assignment** — tell them you'll transition it (naming its current status) and ask them to confirm. If the ticket is unassigned, include the explicit assignment offer from Step 1 in the same question. Consent to transition is not automatically consent to assignment, or vice versa.
 5. **Scope check** — ask them to confirm your understanding of the scope before you start.
 
-> If Step 2.1 found an existing branch for this ticket, skip only the **branch-type** question — the branch name is known, but its intended MR target is not. Resolve or confirm `{TARGET}` using the target-provenance rules below, then still ask about estimate, In Progress/assignment consent and scope.
+> If Step 2.1 found an existing branch for this ticket, skip only the **branch-type** question — the branch name is known, but its intended MR target is not. Resolve or confirm `{TARGET}` using the rules in Step 2.1.1 above, then still ask about estimate, In Progress/assignment consent and scope.
 
 **Wait for answers before proceeding.** Do not create the branch, transition the ticket, set the estimate, or touch any code until the user has responded to this batch.
 
@@ -433,7 +433,9 @@ If you realise you've written code before completing Steps 4–6, don't quietly 
 
 Let `{TARGET}` be the authoritative target branch confirmed in Step 3, `{type}` the confirmed branch prefix, and `{TICKET-KEY}` the full ticket key as given.
 
-### Flow A: New branch from the integration branch
+### Flow A: New branch (from the integration branch or an epic branch)
+
+The commands are identical either way — `{TARGET}` already carries whichever base Step 3 confirmed (integration branch or epic branch), so there's nothing left to branch on:
 
 ```bash
 git fetch origin {TARGET}
@@ -442,16 +444,7 @@ git merge --ff-only origin/{TARGET}
 git checkout -b {type}/{TICKET-KEY}
 ```
 
-### Flow B: New branch from an epic branch
-
-```bash
-git fetch origin {TARGET}
-git checkout {TARGET}
-git merge --ff-only origin/{TARGET}
-git checkout -b {type}/{TICKET-KEY}
-```
-
-### Flow C: Existing branch (found in Step 2.1)
+### Flow B: Existing branch (found in Step 2.1)
 
 If it exists on the remote (`remoteOnly` or both):
 
@@ -672,6 +665,18 @@ workflow failing to do its own job.
    the evidence block above and report the updated diff/evidence before offering
    wrap-up again. A checklist result never authorizes committing bytes the user
    has not seen.
+
+   **Do not resolve this offer yourself before presenting it.** The offer and the
+   wrap-up question belong **together, in one message**, exactly as shown above —
+   that's the whole point of folding it in rather than asking twice. What's
+   forbidden is pre-empting that single combined message by asking the checklist
+   question on its own first, answering it yourself with a generic pass ("I did a
+   quick pass myself"), and only then sending the wrap-up text — as if "let me
+   know, otherwise I'll wrap up" counted as the user's reply. It doesn't: the
+   named checklist was never actually run, and the wrap-up offer went out before
+   its own precondition (the checklist reply) existed. Ask the combined
+   question exactly once, as one message, and wait for the actual reply before
+   doing anything else.
 4. **If nothing describes itself that way, say so — don't skip silently.** Fold
    a one-line "checked {where you looked}, nothing found describing itself as a
    review checklist" into the same wrap-up message from Step 10, then ask the
