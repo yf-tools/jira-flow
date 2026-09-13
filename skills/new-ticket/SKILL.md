@@ -647,11 +647,11 @@ workflow failing to do its own job.
    Projects name these anything — `code-review-self.md`, `pre-flight.md`,
    `definition-of-done.md`. Check `.kiro/steering/` (including files marked
    `inclusion: manual`, which aren't already in your context), any
-   `.kiro/skills/` directory, and repo-root rule files (`AGENTS.md`,
-   `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`). Read each
-   candidate's own description and judge whether it's about reviewing,
-   verifying, or checking work before it ships — not whether its filename
-   contains "review".
+   `.kiro/skills/` directory, and repo-root rule files under whatever name this
+   project uses (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.cursor/rules/*.mdc`,
+   `.github/copilot-instructions.md`, and equivalents). Read each candidate's
+   own description and judge whether it's about reviewing, verifying, or
+   checking work before it ships — not whether its filename contains "review".
 2. **If you find one, name it and fold the offer into the wrap-up question**
    below rather than asking twice:
 
@@ -667,16 +667,15 @@ workflow failing to do its own job.
    has not seen.
 
    **Do not resolve this offer yourself before presenting it.** The offer and the
-   wrap-up question belong **together, in one message**, exactly as shown above —
-   that's the whole point of folding it in rather than asking twice. What's
-   forbidden is pre-empting that single combined message by asking the checklist
+   wrap-up question belong **together, in one message**, exactly as shown above.
+   Forbidden: pre-empting that single combined message by asking the checklist
    question on its own first, answering it yourself with a generic pass ("I did a
-   quick pass myself"), and only then sending the wrap-up text — as if "let me
-   know, otherwise I'll wrap up" counted as the user's reply. It doesn't: the
-   named checklist was never actually run, and the wrap-up offer went out before
-   its own precondition (the checklist reply) existed. Ask the combined
-   question exactly once, as one message, and wait for the actual reply before
-   doing anything else.
+   quick pass myself"), then sending the wrap-up text as if "let me know,
+   otherwise I'll wrap up" counted as the user's reply — it doesn't, the named
+   checklist was never actually run. Same standard as any other unverified claim
+   in this workflow: never report a finding or count attributed to the checklist
+   unless you actually opened its content and followed it. Ask the combined
+   question exactly once, as one message, and wait for the actual reply.
 4. **If nothing describes itself that way, say so — don't skip silently.** Fold
    a one-line "checked {where you looked}, nothing found describing itself as a
    review checklist" into the same wrap-up message from Step 10, then ask the

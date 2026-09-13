@@ -13,11 +13,11 @@ keywords:
     "workflow",
     "project-scanner",
     "atlassian.net",
-    "/browse/",
+    "browse",
     "ticket-key",
     "jira-url",
   ]
-author: "Youssef Fathallah"
+author: "Youssef Fathalla"
 ---
 
 # Jira Ticket Workflow

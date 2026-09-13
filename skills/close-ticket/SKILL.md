@@ -194,17 +194,7 @@ Fold that offer into the **Step 2.3 staged review**, which is already a blocking
 gate — one decision point for the user instead of two. If they say yes, apply it and
 report what it found; if they decline, note that and move on.
 
-**Do not resolve this offer yourself before folding it in.** The checklist offer
-and the Step 2.3 review belong together, in one presentation, with one reply
-covering both — that's the entire reason to fold rather than ask twice. What's
-forbidden is asking the checklist question on its own first, answering it
-yourself with the generic 2.2 checks ("I did a quick pass myself"), and only
-then presenting Step 2.3 as if that stood in for the user's answer. "Otherwise
-I'll proceed to the summary," followed immediately by the summary in the same
-breath, is not the user replying — it's the question and a self-supplied answer
-written in the same turn. Put the named checklist's status as an open line
-inside the Step 2.3 presentation itself (per the "found and offered" wording
-above) and let its one closing question cover it.
+**Do not resolve this offer yourself before folding it in.** The checklist offer and the Step 2.3 review belong together, in one presentation, with one reply covering both. What's forbidden: asking the checklist question on its own first, answering it yourself with the generic 2.2 checks ("I did a quick pass myself"), then presenting Step 2.3 as if that stood in for the user's answer — "otherwise I'll proceed to the summary" followed immediately by the summary in the same breath is a self-supplied answer, not the user replying. Same standard as reporting any other unverified claim: put the named checklist's status as an open line inside the Step 2.3 presentation itself (per the "found and offered" wording above) and let its one closing question cover it — never report a finding or count attributed to that checklist unless you actually opened its content and followed it.
 
 A steering file marked `inclusion: manual` isn't already in your context the way an
 always-included one is — reading it here explicitly is the only way you'll see it,
@@ -472,7 +462,7 @@ repo directory. If an MR exists:
 
 Only continue below when there's genuinely no MR/PR yet.
 
-**Don't reach for `glab_mr_view` (or `glab_mr_note`/`glab_mr_diff`/`glab_mr_approve`) to look at that existing MR.** Those MCP tools shell out assuming they're already running inside the repo, and the `glab` MCP server's actual working directory isn't — so they fail on a git check before your request is even read:
+**Don't reach for a `glab_mr_*` tool that targets one specific MR to look at that existing MR** — `glab_mr_view`, `glab_mr_note`, `glab_mr_diff`, `glab_mr_approve`, `glab_mr_issues` are all confirmed failing this way, and an unlisted sibling should be assumed to fail the same way rather than tried first. Those MCP tools shell out assuming they're already running inside the repo, and the `glab` MCP server's actual working directory isn't — so they fail on a git check before your request is even read:
 
 ```
 fatal: not a git repository (or any of the parent directories): .git
