@@ -1047,6 +1047,36 @@ function testManifestConformance() {
   }
 }
 
+/** Pull the keyword flow-sequence out of a POWER.md frontmatter block. */
+function powerKeywords(text) {
+  const m = text.match(/^keywords:\s*\[([\s\S]*?)\]/m);
+  if (!m) return null;
+  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+}
+
+/**
+ * POWER.md's frontmatter and plugin.json each carry a keyword list, by hand,
+ * describing the same thing. Two hand-maintained copies of one fact drift: a
+ * keyword edited in one file and not the other changes activation behaviour
+ * without failing anything. Observed — plugin.json carried seven keywords
+ * POWER.md never listed, including a punctuation variant cleaned out of one
+ * file only.
+ */
+function testKeywordParity() {
+  const pluginRoot = resolve(__dirname, "..");
+  const power = readFileSync(join(pluginRoot, "POWER.md"), "utf8");
+  const manifest = JSON.parse(readFileSync(join(pluginRoot, "plugin.json"), "utf8")).keywords;
+  const declared = powerKeywords(power);
+
+  truthy("keywords: POWER.md declares a keyword list", Array.isArray(declared) && declared.length > 0);
+  truthy("keywords: plugin.json declares a keyword list", Array.isArray(manifest) && manifest.length > 0);
+  if (!declared || !manifest) return;
+
+  eq("keywords: POWER.md and plugin.json list the same keywords", [...declared].sort(), [...manifest].sort());
+  eq("keywords: POWER.md has no duplicates", declared.length, new Set(declared).size);
+  eq("keywords: plugin.json has no duplicates", manifest.length, new Set(manifest).size);
+}
+
 /** Every path mcp.json points at must actually exist in the package. */
 function testMcpEntryPointsExist() {
   const { json: mcp } = readPluginJson("mcp.json");
@@ -1197,6 +1227,13 @@ function testWorkflowPolicyContracts() {
     "Epic Link",
     "Stay here and end ticket setup",
     "one Jira ticket per branch",
+    // Transition safety must be a positive test. A denylist of forbidden
+    // to.name values invites "not on the list ⇒ safe", which on a board with
+    // Cancelled/Archived/Released protects nothing — and the wrong pick here
+    // writes a destructive change to a real ticket.
+    "The safe test is a positive one",
+    "not a safe-list in disguise",
+    "When nothing reachable is unambiguously active",
   ]) truthy(`new-ticket: policy contains ${phrase}`, start.includes(phrase));
 
   for (const phrase of [
@@ -1207,6 +1244,8 @@ function testWorkflowPolicyContracts() {
     "loop back through the definitive staged review",
     "Never write or disclose it",
     "Never re-default to `git.integrationBranch`",
+    "treat the names here as examples, not boundaries",
+    "absence from that list is never evidence it's safe",
   ]) truthy(`close-ticket: policy contains ${phrase}`, close.includes(phrase));
 
   falsy("new-ticket: estimate is not mislabeled as logged", start.includes("5h already logged"));
@@ -1214,6 +1253,14 @@ function testWorkflowPolicyContracts() {
   falsy("new-ticket: stale BASE alias removed", start.includes("`{BASE}`"));
   falsy("new-ticket: multi-ticket branches are not advertised", start.includes("Multiple related fixes"));
   falsy("close-ticket: no MR disclosure for no-verify", close.includes("say plainly in the MR description"));
+  falsy(
+    "new-ticket: transition safety is not a bare denylist",
+    start.includes("select a transition whose `to.name` is `Merged`"),
+  );
+  falsy(
+    "close-ticket: transition safety is not a bare denylist",
+    close.includes("choose a transition targeting `Merged`, `Rejected`, `Closed` or `Done` unless"),
+  );
 
   const validation = close.indexOf("### 2.2.1 — Run validation before the approval gate");
   const stagedReview = close.indexOf("### 2.3 — Stage first");
@@ -1241,6 +1288,7 @@ const suites = [
   ["every name pattern fires", testEveryNamePatternFires],
   ["no duplicate sources", testNoDuplicateSources],
   ["Agent Plugins manifest conformance", testManifestConformance],
+  ["keyword parity", testKeywordParity],
   ["mcp.json entry points exist", testMcpEntryPointsExist],
   ["plugin layout", testPluginLayout],
   ["Agent Skills frontmatter conformance", testSkillFrontmatterConformance],

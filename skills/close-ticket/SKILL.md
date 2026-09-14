@@ -787,9 +787,18 @@ an extra exchange for information that could have been gathered up front.
 three values and its `indeterminate` bucket displays as "In Progress", so
 unrelated statuses like `Merged`, `Blocked` and the current status itself all
 report the same category. Selecting by category can mark a ticket **Merged**
-when you meant to send it for review. Compare the actual `to.name`, and never
-choose a transition targeting `Merged`, `Rejected`, `Closed` or `Done` unless
-the user explicitly asked for that.
+when you meant to send it for review.
+
+**Test positively, and treat the names here as examples, not boundaries.**
+Apply a transition only when its `to.name` is unambiguously the review state
+*on this board* — `To Review`, `In Review` and `Ready for Review` are common,
+but a project may call it something else entirely. `Merged`, `Rejected`,
+`Closed` and `Done` are confirmed wrong targets unless the user explicitly
+asked for one, and a name's absence from that list is never evidence it's safe:
+`Cancelled`, `Archived`, `Released` and whatever else this project invented are
+equally wrong and equally unlisted. When nothing reachable is unambiguously the
+review state, report every reachable `to.name` and ask which one it is rather
+than picking the closest match.
 
 1. Call `getTransitionsForJiraIssue` with the `cloudId` from Step 0 to see what's reachable **from the ticket's current status**.
 2. **Already in the review state?** Say so and skip.

@@ -14,8 +14,14 @@ keywords:
     "project-scanner",
     "atlassian.net",
     "browse",
-    "ticket-key",
     "jira-url",
+    "issue-link",
+    "ticket-key",
+    "start-ticket",
+    "close-ticket",
+    "wrap-up-ticket",
+    "jira-link",
+    "jira-ticket",
   ]
 author: "Youssef Fathalla"
 ---

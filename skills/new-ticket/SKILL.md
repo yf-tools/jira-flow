@@ -500,21 +500,36 @@ All three report `statusCategory.name === "In Progress"`. None of them is In
 Progress. Matching on the category here would mark the ticket **Merged** — a
 destructive, hard-to-explain change to a real ticket.
 
-So: compare against `to.name`, and require it to actually look like an active
-development status (`In Progress`, `In Development`, `Doing`). Treat
-`statusCategory` as unreliable for this decision.
+So: compare against `to.name`, and treat `statusCategory` as unreliable for this
+decision.
 
-**Never** select a transition whose `to.name` is `Merged`, `Rejected`,
-`Blocked`, `Closed`, `Done`, or a self-loop back to the current status, no
-matter what its category says.
+**The safe test is a positive one, and the names below are examples rather than
+boundaries.** Apply a transition only when its `to.name` is unambiguously an
+active-development status *on this board*. `In Progress`, `In Development` and
+`Doing` are confirmed cases, but a project may equally call it `Started`,
+`Implementing`, or `In Dev`. A name you recognise as active is a green light; a
+name you don't recognise is a question for the user, not a near-match to pick
+from.
+
+**The forbidden names are not a safe-list in disguise.** `Merged`, `Rejected`,
+`Blocked`, `Closed`, `Done`, and a self-loop back to the current status are all
+confirmed wrong targets — but a name's *absence* from that list is never
+evidence that it's safe. `Cancelled`, `Won't Do`, `Archived`, `Released`, and
+whatever else this project invented are equally wrong and equally unlisted.
+
+**When nothing reachable is unambiguously active, stop and show the user the
+full set.** Report every reachable `to.name` and ask which one means "actively
+being worked on" here, rather than picking the closest-looking option. Guessing
+wrong writes a destructive, hard-to-explain change to a ticket other people
+watch; asking costs one message.
 
 ### Procedure
 
 1. Call `getTransitionsForJiraIssue` with the resolved `cloudId` to see what's reachable **from the ticket's current status**.
 2. **Already in progress?** Say so and skip the rest.
-3. **A transition whose `to.name` is an In Progress equivalent?** Use it. Done.
-4. **No direct path?** This is common and expected — verified on a real board, where TO REVIEW offered no route to In Progress at all. Many workflows require an intermediate hop, typically backwards to `To Do` / `Open` / `Backlog` / `Reopened`, then forward. When that's the case:
-   - Pick an intermediate whose `to.name` is a genuine backlog/open state. In the real example above, `To Do` was the only valid choice among five transitions — `Merged`, `Rejected`, `Blocked` and the self-loop were all dead ends.
+3. **A transition whose `to.name` is unambiguously an active-development status?** Use it. Done.
+4. **No direct path?** This is common and expected — verified on a real board, where TO REVIEW offered no route to In Progress at all. Many workflows require an intermediate hop, typically backwards to a backlog/open state (`To Do`, `Open`, `Backlog`, `Reopened` are the common names, not the only ones), then forward. When that's the case:
+   - Pick an intermediate whose `to.name` is unambiguously a backlog/open state. In the real example above, `To Do` was the only valid choice among five transitions — `Merged`, `Rejected`, `Blocked` and the self-loop were all dead ends. If no candidate is unambiguous, show the reachable set and ask instead of taking the closest match — the same rule as choosing the active status above.
    - Tell the user what you're about to do and why: *"`{TICKET}` is in `{status}`, which has no direct transition to In Progress. I'll move it to `{intermediate}` first, then to In Progress."*
    - Do the first hop, call `getTransitionsForJiraIssue` **again** to confirm the second hop is now available, then do it.
    - Don't chain more than two hops without asking. Beyond that, show the user the workflow you're seeing and let them decide.
