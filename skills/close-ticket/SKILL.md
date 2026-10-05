@@ -729,6 +729,7 @@ Use the `cloudId` resolved in Step 0. Transition the ticket and add a summary co
 
 1. Transition to the project's "To Review" equivalent
 2. Add a comment covering what changed, any notable technical decisions for the reviewer, and known follow-ups or limitations
+   - **Do not include MR URLs or target branch names**: GitLab/GitHub integrations automatically link commits, branches, and MRs directly in Jira's Development panel. Keep the comment strictly to a very short, clear technical summary of what was done.
 
 ### Confirm status, comment AND time in one message
 
