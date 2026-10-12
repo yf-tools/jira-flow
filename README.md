@@ -1,61 +1,53 @@
-# Jira Ticket Workflow
+# JiraFlow
 
-A Kiro power for the full lifecycle of a Jira ticket: starting one (branch setup,
-scope, status transition, estimate) and closing one (pre-push checks, commit,
+A Kiro power for the full lifecycle of a Jira ticket: starting one (`jira-pull`: branch setup,
+scope, status transition, estimate) and closing one (`jira-push`: pre-push checks, commit,
 push, MR/PR, Jira transition, worklog).
 
-Its distinguishing feature is that **nothing project-specific is hardcoded.** A
-bundled MCP server scans the repo and derives the package manager, git hooks,
+Its distinguishing feature is that **nothing project-specific is hardcoded.** Fast,
+deterministic helper scripts inspect the local git repository and derive the package manager, git hooks,
 integration branch, branch naming prefixes, commit convention and more, so the
 same workflow behaves correctly across different codebases instead of assuming
 `npm`, `main`, and conventional commits.
 
-Detection is **not JavaScript-only.** The scanner recognises ten ecosystems
-(JavaScript, Python, Rust, Go, Java/Kotlin, Ruby, PHP, .NET, Dart, Elixir) and
-reports frameworks, monorepo tools and test runners as _arrays_, because a real
-monorepo has an Angular frontend beside a FastAPI service and naming one of them
-hides the other. It also resolves a `commands` block — ready-to-run lint, test,
-build and format — by checking the repo's own task runner (`make`, `just`,
-`task`) before any package script, and a generic default last. That ordering is
-what lets the workflow verify a change on a stack whose linters it has never
-heard of: if the repo exposes `make lint`, that is the command, whatever language
-sits underneath.
-
 For what each step does, see [POWER.md](POWER.md). For known gaps, see
 [TODO.md](TODO.md).
 
+> 🚀 **Team Getting Started**: Follow the step-by-step [Team Setup & Installation Guide](SETUP.md) to set up Git, `glab`, and Jira MCP in under 5 minutes.
+
 This power is packaged to the [Agent Plugins](https://agent-plugins.org/) 1.0
-standard (`plugin.json` + `skills/` + `mcp.json`) rather than anything
+standard (`plugin.json` + `skills/`) rather than anything
 Kiro-specific. Kiro is what this was built and tested against, but the same
-package format is also read natively by VS Code / GitHub Copilot. Support in
-other clients isn't verified here — check what a given client actually
-supports before assuming it'll load.
+package format is also read natively by VS Code / GitHub Copilot and Antigravity.
 
 ## Requirements
 
 | Requirement         | Needed for                                        | Notes                                                                                                         |
 | ------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `node`              | The bundled `project-scanner` MCP server          | Zero dependencies, nothing to install                                                                         |
-| `git`               | Everything                                        | Resolved from standard install locations, not `PATH`. Set `PROJECT_SCANNER_GIT_PATH` if yours lives elsewhere |
-| Jira MCP server     | Reading tickets, transitions, estimates, worklogs | **Not bundled** — add it yourself, see Setup. Degrades gracefully without it                                  |
-| `glab` CLI          | Creating merge requests on GitLab                 | **Required** for MR creation on GitLab. The `glab_mr_create` MCP tool doesn't work — see Limitations          |
-| `gh` CLI            | Creating pull requests on GitHub                  | **Required** for PR creation on GitHub                                                                        |
-| Git host MCP server | Finding existing MRs, resolving reviewer names    | **Not bundled** — optional but recommended, see Setup                                                         |
+| `node`              | Running bundled helper scripts (`git-prep`, etc.) | Zero dependencies, nothing to install                                                                         |
+| `git`               | Everything                                        | Standard Git install on PATH                                                                                  |
+| Jira MCP server     | Reading tickets, transitions, estimates, worklogs | **Not bundled** — connect via official Atlassian Remote MCP (`mcp-remote`). See [SETUP.md](SETUP.md)          |
+| `glab` CLI          | Creating merge requests on GitLab                 | **Required** for MR creation on GitLab. See [SETUP.md](SETUP.md)                                              |
+| `gh` CLI            | Creating pull requests on GitHub                  | **Required** for PR creation on GitHub (if using GitHub)                                                      |
 
-Only `project-scanner` ships with this power. Everything else is deliberately left
-to your own configuration — reasoning under Setup.
+Bundled helper scripts (`git-prep.mjs`, etc.) ship directly with this power. Everything else is deliberately left to your own configuration — reasoning under Setup.
 
 ## Install
 
 **From a GitHub URL** (Kiro's Powers panel → **Add power from GitHub** →
-paste the repository URL). For a private repo, whoever you paste it as needs
-read access — see the repo's own access settings.
+paste the repository URL):
+
+```text
+https://github.com/yf-tools/jira-flow
+```
+
+For a private repo, whoever you paste it as needs read access — see the repo's own access settings.
 
 **From a local checkout** — this also works for a private repo you don't
 have push access to, once someone's given you read and you've cloned it:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/yf-tools/jira-flow.git
 ```
 
 Then in Kiro: Powers panel → **Add power from Local Path** → select the
@@ -66,17 +58,13 @@ Kiro's managed slot for the *installed* copy, and it can be overwritten by
 Kiro's own install/sync process — clone and edit this repo somewhere else
 (e.g. `~/dev/`), then install from that path or from GitHub.
 
-Either way, reconnect from the **MCP Servers** view in the Kiro feature panel.
-One entry should appear:
+Verify the power is active in your IDE's skills / plugins panel. You can test your setup at any time with a zero-risk dry run:
 
-- `power-jira-ticket-workflow-project-scanner` (1 tool)
+```text
+/jira-pull <YOUR-TICKET-KEY> --dry-run
+```
 
-Verify it by asking Kiro:
-
-> run get_project_profile on this workspace
-
-You should get a JSON profile with `packageManager`, `git`, `vcs` and so on. If
-the response has no `git` key, the server process is stale — reconnect it.
+See [SETUP.md](SETUP.md) for full setup instructions and verification.
 
 ## Setup
 
@@ -114,7 +102,7 @@ Needs to be able to:
 
 | Capability                                           | Used for                                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| Create a merge/pull request                          | The main event in `close-ticket`                                          |
+| Create a merge/pull request                          | The main event in `jira-push`                                             |
 | List merge/pull requests filtered by source branch   | Detecting an MR that already exists, so a second run doesn't duplicate it |
 | List recent merge/pull requests with their reviewers | Resolving a reviewer's name to a username                                 |
 | Report the authenticated username                    | Defaulting the MR assignee correctly                                      |
@@ -159,7 +147,7 @@ https://yoursite.atlassian.net/browse/PROJ-1234
 ```
 
 A bare key or URL means "start working on this ticket" and triggers the
-`new-ticket` workflow. To finish up, say "close ticket", "wrap up", or "create an
+`jira-pull` workflow. To finish up, say "close ticket", "jira-push", "wrap up", or "create an
 MR".
 
 **If the agent goes straight to fetching the ticket or writing code** without
@@ -174,16 +162,6 @@ separate [`gitlab-mr-review`](https://github.com/yf-tools/gitlab-mr-review)
 power — that's a distinct task from the Jira ticket lifecycle this power
 covers, so it isn't bundled here.
 
-**After changing anything under `server/`, reconnect `project-scanner`.** The
-running process keeps serving the old code otherwise, including the old tool
-schema. This is the single most common source of confusion when developing the
-power.
-
-The server is two files. `server.js` is the entry point and owns only the
-JSON-RPC transport; `scanner.js` holds every detection function and is pure. Run
-`node test.mjs` from `server/` before and after any change — it drives the real
-stdio protocol _and_ imports `scanner.js` directly, then asserts both paths
-return an identical profile.
 
 ## Without Jira tools
 
@@ -199,7 +177,7 @@ Environment and upstream issues rather than defects here, but you'll hit them:
 - **`glab_mr_create` (MCP) doesn't work.** It fails with `fatal: not a git
 repository` before reading any parameters, because the glab MCP server has no
   repo working directory and that tool exposes no `repo` flag to compensate.
-  `close-ticket` uses the `glab` CLI instead, which is why the CLI is required.
+  `jira-push` uses the `glab` CLI instead, which is why the CLI is required.
 - **`glab_api` (MCP) targets `gitlab.com`** regardless of your repo's remote, so
   self-hosted instances need an explicit `hostname` flag or the call returns 401.
   The dedicated tools (`glab_mr_list`, `glab_auth_status`) don't have this problem.
