@@ -112,7 +112,7 @@ const commitSubjects = rawLog
 
 let conventionalCount = 0;
 let ticketPrefixCount = 0;
-const CONVENTIONAL_RE = /^[a-z]+(?:\([A-Za-z0-9_.\-\/]+\))?!?: /;
+const CONVENTIONAL_RE = /^[a-z]+(?:\([A-Za-z0-9_.\-\\/]+\))?!?: /;
 const TICKET_PREFIX_RE = /^[A-Z][A-Z0-9]+-\d+\s*[:\-—]/;
 for (const sub of commitSubjects) {
   if (CONVENTIONAL_RE.test(sub)) conventionalCount++;
