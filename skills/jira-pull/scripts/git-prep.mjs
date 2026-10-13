@@ -213,7 +213,7 @@ function findMrTemplate(targetWorkspace = workspace) {
           const files = readdirSync(dirPath).filter((f) => f.endsWith(".md") || f.endsWith(".txt"));
           if (files.length > 0) {
             const defaultFile = files.find((f) => /^default\./i.test(f)) || files[0];
-            const rel = `${parent}/${child}/${defaultFile}`.replace(/\\/g, "/");
+            const rel = `${parent}/${child}/${defaultFile}`.replaceAll('\\', "/");
             const content = readFileSync(join(dirPath, defaultFile), "utf8");
             return { path: rel, content };
           }
@@ -283,7 +283,7 @@ function detectProjectTooling(targetWorkspace = workspace) {
   } else if (existsSync(join(targetWorkspace, "package.json"))) {
     try {
       const pkg = JSON.parse(readFileSync(join(targetWorkspace, "package.json"), "utf8"));
-      if (pkg.scripts?.test && pkg.scripts.test.includes("node --test")) {
+      if (pkg.scripts?.test?.includes("node --test")) {
         testRunner = "node:test";
       }
     } catch {}

@@ -11,6 +11,7 @@ Follow this executive workflow **before writing any code** when starting a Jira 
 **URL or key with extra content (screenshots, logs, notes):** This is additional context for Step 1's summary and Step 3's scope check — not a shortcut to skip branch creation or status transitions.
 
 **Dry-Run / Test Mode:** Activated ONLY when the user explicitly includes the flag `--dry-run` or `--test-mode` (or phrases like `simulate only`). Never trigger on generic words like "test", "testing", or "write tests" so it never conflicts with regular testing or test-writing tasks:
+
 - Always run the full onboarding flow (Step 1 to Step 3) regardless of whether the ticket is already `In Progress` or an audit task.
 - 🛑 **MANDATORY**: You MUST solicit user input using the `ask_question` tool (or formatted chat options if `ask_question` is not available in your IDE) with clean, friendly choices. Do NOT skip the question step or print the summary prematurely.
 - Once the user answers the choices, do NOT perform any mutating actions (do not cut or switch git branches, do not edit Jira assignees or transitions).
@@ -52,6 +53,7 @@ node "<this-skill-dir>/scripts/git-prep.mjs" --workspace "<repo-path>" --ticket 
 > **Git Host CLI vs MCP:** The single-repo `gitlab` MCP daemon runs outside the repository directory, causing `glab_mr_*` tools to fail with `fatal: not a git repository`. When checking MRs/PRs, always use `run_command` with the `glab` or `gh` CLI directly inside the workspace directory (e.g. `glab mr list --source-branch {branch}`, `glab mr view {id}`, `gh pr list --head {branch}`).
 
 The script returns:
+
 - `integrationBranch` (`develop` or `main`) & `defaultBranch`
 - `branchNaming.dominantPrefixes` (e.g. `fix`, `feature`)
 - `commitConvention.suggestedFormat`
@@ -62,7 +64,8 @@ The script returns:
 - `epic`: `{ exists, local, remote, name }`
 - `detached` and `isDirty` (`uncommittedFiles`)
 
-### Branch State Decision Matrix:
+### Branch State Decision Matrix
+
 1. **Case A — New branch:** Does not exist $\rightarrow$ cut from confirmed base `{TARGET}` (`integrationBranch` or epic branch).
 2. **Case B — Existing active branch:** Exists and `isMergedIntoTarget: false` $\rightarrow$ checkout and pull latest.
 3. **Case C — Reopened / QA Rejected / Previously Merged Ticket:**
@@ -88,11 +91,13 @@ Present one structured message asking all necessary questions before acting:
 5. **Scope confirmation:** Brief summary of requirements and QA feedback.
 
 🛑 **Gate: User Confirmation Required Before Proceeding.**
+
 - **If `ask_question` tool is available in your environment (Antigravity, Claude Code):** You MUST invoke `ask_question` with the 3-question carousel structure below.
 - **Graceful Fallback (Kiro, Cursor, Windsurf, VS Code):** If `ask_question` is NOT registered in your active tools, format the 3 questions clearly in chat markdown with numbered options, end your turn, and wait for the user's reply before proceeding.
 
 **Question Structure (Modal Carousel or Chat Fallback):**
 Provide distinct questions (3 questions standard, or 4 if sprint assignment is needed):
+
 1. **Question 1 (Branch Setup):**
    - **Recommended option:** Must be the clean short branch name `{type}/{TICKET-KEY}` (e.g. `feature/PROJ-101` or `fix/PROJ-101`) from `{TARGET}`. Never recommend long slugged names as option 1.
    - Alternate options: Long descriptive branch (e.g. `feature/{TICKET-KEY}-slug`), stay on current branch, or cancel.

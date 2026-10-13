@@ -16,6 +16,54 @@ For detailed workflow steps, see the skills in [`skills/`](skills/) ([`jira-crea
 
 > 🚀 **Team Getting Started**: Follow the step-by-step [Team Setup & Installation Guide](SETUP.md) to set up Git, `glab` / `gh`, and Jira MCP in under 5 minutes.
 
+---
+
+## 🎯 Why JiraFlow? (Problems We Faced & How It Solves Them)
+
+### 🛠️ `jira-create` — Standardized Ticket Creation
+
+- ❌ **The Problem We Faced:**
+  - Vague, 3-word tickets like *"Button broken"* or *"Fix API"* with zero reproduction steps, missing device/OS context, and no acceptance criteria.
+  - Tickets created in isolation without being linked to an Epic, without components, and left wandering in the backlog instead of the active sprint.
+  - Developers waste hours in back-and-forth messages just trying to understand what the ticket requires before writing any code.
+
+- 💡 **How It Solves It:**
+  - **Enforces standard templates:** Automatically structures tickets with *Steps to Reproduce*, *Expected vs. Actual*, and *Acceptance Criteria*.
+  - **Auto-detects context:** Inspects the repository to suggest matching components, queries Jira for the parent Epic, and offers to add the ticket directly into the team’s current active sprint.
+  - **Ready to code:** The ticket is created with all metadata filled in, ready for instant onboarding with `jira-pull`.
+
+---
+
+### 📥 `jira-pull` — Ticket Onboarding & Branch Setup
+
+- ❌ **The Problem We Faced:**
+  - Every developer names branches differently (`fix-button`, `test-bug`, `PROJ-1234-some-random-slug`).
+  - Developers accidentally cut branches from stale or wrong bases (e.g. cutting from `main` instead of `develop`).
+  - People start coding without assigning the ticket to themselves in Jira or forgetting to move it to *In Progress*.
+  - On QA-rejected tickets, developers accidentally checkout an old branch that was already merged, resulting in messy git history.
+
+- 💡 **How It Solves It:**
+  - **Auto-detects Git conventions:** Runs an automatic check (`git-prep.mjs`) that inspects your repo to detect the integration branch (`develop` or `main`), commit conventions, and branch prefixes (`fix/`, `feature/`).
+  - **Prevents merge mistakes:** Alerts you immediately if the ticket’s previous branch was already merged, proposing a clean fresh QA-fix branch instead.
+  - **One-click board sync:** Assigns the ticket to you, moves it to *In Progress*, sets the time estimate, and switches branches safely in a single turn.
+
+---
+
+### 📤 `jira-push` — Verification, Push & MR Creation
+
+- ❌ **The Problem We Faced:**
+  - Developers accidentally pushing secret files (`.env`, private keys, or 100MB build artifacts) to GitLab/GitHub.
+  - Forgetting to run linters/tests, discovering CI pipeline failures 15 minutes after pushing.
+  - Forgetting to log time (worklog) in Jira, forgetting to transition the ticket to *In Review*, and forgetting to tag reviewers on the MR.
+  - Writing tedious, empty MR descriptions like *"fixed bug"*.
+
+- 💡 **How It Solves It:**
+  - **Pre-push safety guard:** Runs `pre-push-check.mjs` to block leaks of `.env` files or secret tokens before Git touches the remote server.
+  - **Smart reviewer lookup:** Automatically finds who actively works on these files in the repo and suggests them as reviewers on GitLab/GitHub.
+  - **Full automatic wrap-up:** Pushes the branch, generates an MR with a clean description, logs your work hours to Jira, and moves the ticket to *In Review*.
+
+---
+
 This plugin is packaged to the [Agent Plugins](https://agent-plugins.org/) 1.0
 standard (`plugin.json` + `skills/`). It works seamlessly across Windows, macOS,
 and Linux on Antigravity, Kiro, Claude Code, Cursor, Windsurf, and VS Code.

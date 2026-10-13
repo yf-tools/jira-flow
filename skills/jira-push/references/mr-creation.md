@@ -44,15 +44,19 @@ Before opening the MR, present all 6 fields individually to the user and wait fo
   - Delete the temporary file after creation.
 
   **GitLab (`glab` CLI):**
+
   ```bash
   glab mr create --title "{title}" --description-file "{temp_file_path}" --target-branch "{target}" --assignee "{assignee}" --remove-source-branch --yes
   ```
+
   *(Or inline `--description "{description}"` for single-line text. If reviewers are set, append `--reviewer "{reviewer1},{reviewer2}"`)*
 
   **GitHub (`gh` CLI):**
+
   ```bash
   gh pr create --title "{title}" --body-file "{temp_file_path}" --base "{target}" --assignee "{assignee}"
   ```
+
   *(If reviewers are set, append `--reviewer "{reviewer1},{reviewer2}"`)*
 
 - **Reviewer Resolution:** Query recent MR authors and reviewers via the helper script `node "<this-skill-dir>/scripts/reviewer-lookup.mjs" --workspace "<repo-path>" --query {name}` to resolve names or usernames accurately without missing external contributors.

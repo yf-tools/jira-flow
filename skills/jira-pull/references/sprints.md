@@ -17,8 +17,10 @@ getJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY},
                fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "parent", "timetracking", "comment", "issuelinks", "components", "customfield_10014", "customfield_10020"]
 ```
 
-### Inspecting the Sprint Value:
+### Inspecting the Sprint Value
+
 In Jira Cloud, sprint data is stored as an array of sprint objects:
+
 ```json
 [
   {
@@ -48,12 +50,14 @@ searchJiraIssuesUsingJql → cloudId: {resolved},
 ```
 
 From the returned issue:
+
 1. Inspect `issue.fields.customfield_10020` (or whichever custom field contains sprint objects with `state: "active"`).
 2. Extract:
    - `activeSprint = { id: sprint.id, name: sprint.name, boardId: sprint.boardId }`
    - `sprintFieldKey = "customfield_10020"` (or the discovered field name).
 
-### Fallbacks:
+### Fallbacks
+
 - If 0 issues match `project = '{PROJECT_KEY}' AND sprint in openSprints()`, try broader JQL: `sprint in openSprints() ORDER BY updated DESC`.
 - If no active sprint is found across the board/project (e.g. Kanban board or between sprint cycles), proceed gracefully without blocking or erroring.
 
@@ -61,15 +65,19 @@ From the returned issue:
 
 ## 3. Assigning an Issue to the Active Sprint
 
-### For Existing Tickets (`jira-pull`):
+### For Existing Tickets (`jira-pull`)
+
 When the user approves adding the ticket to the current sprint:
+
 ```text
 editJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY},
                 fields: { [sprintFieldKey]: activeSprint.id }
 ```
 
-### For New Tickets (`jira-create`):
+### For New Tickets (`jira-create`)
+
 When the user chooses to put the new ticket into the current active sprint:
+
 ```text
 createJiraIssue → cloudId: {resolved}, projectKey: {PROJECT_KEY}, ...,
                   additional_fields: { [sprintFieldKey]: activeSprint.id }
