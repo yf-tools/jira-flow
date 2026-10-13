@@ -140,10 +140,12 @@ Load the entire plugin directory or copy the skills:
 Before starting your first ticket, run the diagnostic check in your terminal:
 
 ```bash
+# From inside the jira-flow directory:
 npm run preflight
-```
 
-*(or `node preflight.mjs --repo .`)*
+# Or from any work repository:
+node "<path-to-plugins>/jira-flow/preflight.mjs" --repo .
+```
 
 This verifies:
 
