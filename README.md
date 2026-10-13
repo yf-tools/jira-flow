@@ -1,24 +1,24 @@
 # JiraFlow
 
-A Kiro power for the full lifecycle of a Jira ticket: starting one (`jira-pull`: branch setup,
-scope, status transition, estimate) and closing one (`jira-push`: pre-push checks, commit,
-push, MR/PR, Jira transition, worklog).
+An end-to-end Jira ticket workflow plugin for any AI assistant (Antigravity, Kiro, Claude Code, Cursor, Windsurf, VS Code):
+
+- **`jira-create`**: create standardized, high-quality tickets with team templates, component detection, parent epic linking, and active sprint vs backlog placement.
+- **`jira-pull`**: start working on a ticket with automated branch setup, active sprint verification, scope confirmation, status transition, and time estimates.
+- **`jira-push`**: wrap up and close work with pre-push validation, clean commits, push, MR/PR creation, Jira transition, and worklog time tracking.
 
 Its distinguishing feature is that **nothing project-specific is hardcoded.** Fast,
 deterministic helper scripts inspect the local git repository and derive the package manager, git hooks,
-integration branch, branch naming prefixes, commit convention and more, so the
+integration branch, branch naming prefixes, commit convention, VCS host, detected Jira project keys, and MR templates, so the
 same workflow behaves correctly across different codebases instead of assuming
-`npm`, `main`, and conventional commits.
+`npm`, `main`, GitLab, and conventional commits.
 
-For what each step does, see [POWER.md](POWER.md). For known gaps, see
-[TODO.md](TODO.md).
+For detailed workflow steps, see the skills in [`skills/`](skills/) ([`jira-create`](skills/jira-create/SKILL.md), [`jira-pull`](skills/jira-pull/SKILL.md), [`jira-push`](skills/jira-push/SKILL.md)).
 
-> 🚀 **Team Getting Started**: Follow the step-by-step [Team Setup & Installation Guide](SETUP.md) to set up Git, `glab`, and Jira MCP in under 5 minutes.
+> 🚀 **Team Getting Started**: Follow the step-by-step [Team Setup & Installation Guide](SETUP.md) to set up Git, `glab` / `gh`, and Jira MCP in under 5 minutes.
 
-This power is packaged to the [Agent Plugins](https://agent-plugins.org/) 1.0
-standard (`plugin.json` + `skills/`) rather than anything
-Kiro-specific. Kiro is what this was built and tested against, but the same
-package format is also read natively by VS Code / GitHub Copilot and Antigravity.
+This plugin is packaged to the [Agent Plugins](https://agent-plugins.org/) 1.0
+standard (`plugin.json` + `skills/`). It works seamlessly across Windows, macOS,
+and Linux on Antigravity, Kiro, Claude Code, Cursor, Windsurf, and VS Code.
 
 ## Requirements
 
@@ -30,51 +30,46 @@ package format is also read natively by VS Code / GitHub Copilot and Antigravity
 | `glab` CLI          | Creating merge requests on GitLab                 | **Required** for MR creation on GitLab. See [SETUP.md](SETUP.md)                                              |
 | `gh` CLI            | Creating pull requests on GitHub                  | **Required** for PR creation on GitHub (if using GitHub)                                                      |
 
-Bundled helper scripts (`git-prep.mjs`, etc.) ship directly with this power. Everything else is deliberately left to your own configuration — reasoning under Setup.
+Bundled helper scripts (`git-prep.mjs`, etc.) ship directly with this plugin. Everything else is deliberately left to your own configuration — reasoning under Setup.
 
 ## Install
 
-**From a GitHub URL** (Kiro's Powers panel → **Add power from GitHub** →
-paste the repository URL):
+Install JiraFlow for your preferred AI coding environment:
 
-```text
-https://github.com/yf-tools/jira-flow
-```
+- **Antigravity:** Copy the `jira-flow` directory to `%USERPROFILE%\.gemini\config\plugins\jira-flow` (Windows) or `~/.gemini/config/plugins/jira-flow` (macOS / Linux), or use the Plugins Manager UI.
+- **Kiro:** Powers panel → **Add power from Local Path** (or **Add power from GitHub** with `https://github.com/yf-tools/jira-flow.git`).
+- **Claude Code:** Load the full plugin directory with `claude --plugin-dir <path-to-jira-flow>`, or copy `skills/jira-create`, `skills/jira-pull`, and `skills/jira-push` into your global `~/.claude/skills/` (or `%USERPROFILE%\.claude\skills\` on Windows) or into your project's `.claude/skills/`.
+- **Cursor / Windsurf / VS Code:** Place `jira-flow` in your project root or reference `skills/jira-create/SKILL.md`, `skills/jira-pull/SKILL.md`, and `skills/jira-push/SKILL.md` in `.cursorrules`, `.windsurfrules`, or `AGENTS.md`.
 
-For a private repo, whoever you paste it as needs read access — see the repo's own access settings.
-
-**From a local checkout** — this also works for a private repo you don't
-have push access to, once someone's given you read and you've cloned it:
-
-```bash
-git clone https://github.com/yf-tools/jira-flow.git
-```
-
-Then in Kiro: Powers panel → **Add power from Local Path** → select the
-cloned directory.
-
-**Do not develop against `~/.kiro/powers/<name>/` directly.** That path is
-Kiro's managed slot for the *installed* copy, and it can be overwritten by
-Kiro's own install/sync process — clone and edit this repo somewhere else
-(e.g. `~/dev/`), then install from that path or from GitHub.
-
-Verify the power is active in your IDE's skills / plugins panel. You can test your setup at any time with a zero-risk dry run:
+Verify the plugin is active in your IDE's skills / plugins panel. You can test your setup at any time with a zero-risk dry run:
 
 ```text
 /jira-pull <YOUR-TICKET-KEY> --dry-run
 ```
 
-See [SETUP.md](SETUP.md) for full setup instructions and verification.
+See [SETUP.md](SETUP.md) for full step-by-step instructions across all IDEs and verification.
+
+## Check your setup before the first ticket
+
+```bash
+npm run preflight
+```
+
+Runs environment diagnostics (Git, Node, `glab` / `gh`, and Atlassian MCP configuration) and verifies that all bundled helper scripts exist and function correctly.
+
+## Automated Tests
+
+Run the test suite using Node's native test runner (zero external dependencies):
+
+```bash
+npm test
+```
 
 ## Setup
 
-Two integrations are **not** bundled. Add them to your own Kiro MCP config
-(`~/.kiro/settings/mcp.json` for every workspace, `.kiro/settings/mcp.json` for
-one), following whatever the current install instructions are for each — this
-README deliberately doesn't reproduce them, because vendor endpoints and commands
-change and a stale snippet is worse than none.
+Two integrations are **not** bundled. Add them to your IDE's MCP configuration (e.g. Antigravity, Kiro, Claude Code, Cursor, or VS Code), following whatever the current install instructions are for each — this README deliberately doesn't reproduce them, because vendor endpoints and commands change and a stale snippet is worse than none.
 
-What the power needs is described below as **capabilities**, not configuration.
+What the plugin needs is described below as **capabilities**, not configuration.
 Any server or CLI providing them will work.
 
 ### 1. Jira — required for anything ticket-related
@@ -84,14 +79,16 @@ Any MCP server exposing Jira tools that can:
 | Capability                              | Used for                                                  |
 | --------------------------------------- | --------------------------------------------------------- |
 | Resolve the accessible site / cloud ID  | Every other Jira call needs it                            |
-| Fetch an issue                          | Reading scope, issue type, current status                 |
+| Fetch an issue                          | Reading scope, issue type, current status, sprint status  |
+| Create an issue                         | Standardized ticket creation in `jira-create`             |
+| Search issues (JQL)                     | Discovering project's active sprint (`openSprints()`)     |
 | List available transitions for an issue | Finding a legal route to In Progress or review            |
 | Apply a transition                      | Moving the ticket                                         |
-| Edit issue fields                       | Setting the time estimate; clearing a blocking resolution |
+| Edit issue fields                       | Setting estimate, sprint assignment, clearing resolution  |
 | Add a comment                           | The summary left for the reviewer                         |
 | Add a worklog                           | Logging time spent                                        |
 
-That's the whole surface — seven capabilities. The Atlassian Cloud MCP server
+That's the whole surface — nine capabilities. The Atlassian Cloud MCP server
 provides them, and so should any equivalent, including one pointed at Jira Data
 Center or Server. The skills call whatever Jira tools are present rather than
 hardcoding a server name, so a different provider needs no changes here.
@@ -108,7 +105,7 @@ Needs to be able to:
 | Report the authenticated username                    | Defaulting the MR assignee correctly                                      |
 
 On GitLab and GitHub the vendor CLIs (`glab`, `gh`) cover all four once
-authenticated, and both can also be exposed to Kiro as MCP servers. **MR/PR
+authenticated, and both can also be exposed to your IDE as MCP servers. **MR/PR
 creation currently requires the CLI regardless** — see Limitations.
 
 On Bitbucket, expect to create the PR by hand; the workflow falls back to handing
@@ -121,13 +118,8 @@ Bundling the Atlassian server was tried and reverted:
 - It shipped roughly **40 tool definitions** — Confluence CRUD, Compass, Teamwork
   Graph, Loom, search — for the **7 capabilities** above. Those schemas are large
   and cost context on every request, whether or not the session touches a ticket.
-- It tied the power to **Atlassian Cloud**, breaking Data Center and Server users.
-- It created a dependency users **cannot cleanly disable**. Kiro's _Disable
-  Server_ action fails on power-declared servers (`Server ... not found in any MCP
-config file`), `"disabled": true` is invalid in a power's `mcp.json` and gets the
-  server skipped with a standing warning, and for `plugin.json`-format powers Kiro
-  manages bundled servers internally rather than writing them into your settings,
-  so there's nothing to override by name.
+- It tied the plugin to **Atlassian Cloud**, breaking Data Center and Server users.
+- It created a rigid dependency users cannot cleanly configure or disable across different IDEs, leading to duplicate connections and unnecessary context window bloat.
 - Anyone who already had Atlassian configured ended up with **two connections** to
   the same service.
 
@@ -135,6 +127,12 @@ Against that, adding it yourself is a one-off. Optional-and-easy beats
 mandatory-and-hard.
 
 ## Using it
+
+### 1. Creating a new ticket (`jira-create`)
+
+Say "create ticket", "file bug", "new issue", or "jira-create". The skill detects your project key from the repository, suggests issue type and components, formats the description with structured templates (Steps to Reproduce, Acceptance Criteria), discovers the active sprint, asks whether to place it in the current sprint or backlog, creates the ticket, and offers to start working on it right away.
+
+### 2. Starting work on a ticket (`jira-pull`)
 
 Paste a ticket key or an Atlassian issue URL, with or without other text:
 
@@ -147,21 +145,23 @@ https://yoursite.atlassian.net/browse/PROJ-1234
 ```
 
 A bare key or URL means "start working on this ticket" and triggers the
-`jira-pull` workflow. To finish up, say "close ticket", "jira-push", "wrap up", or "create an
-MR".
+`jira-pull` workflow. It checks whether the ticket is in the active sprint (offering to add it if it's in the backlog), sets up the branch, assigns it to you, moves it to In Progress, and records your planned estimate.
+
+### 3. Wrapping up work (`jira-push`)
+
+To finish up, say "close ticket", "jira-push", "wrap up", or "create an MR". It validates tests and linting, stages files safely, pushes the branch, opens the MR/PR with detected reviewers, moves Jira to Review, and logs time spent.
 
 **If the agent goes straight to fetching the ticket or writing code** without
 creating a branch, asking about scope/estimate/branch type, or moving the
-ticket to In Progress, it activated the power but skipped reading the skill
-content (`kiro_powers readSkill`). That call is mandatory before Step 1 of
-either workflow — see [POWER.md](POWER.md#when-to-activate). If you see this
+ticket to In Progress, it activated the plugin but skipped loading the skill
+content (reading `skills/*/SKILL.md` in Antigravity, Claude Code, Cursor, Kiro, etc.).
+That step is mandatory before Step 1 of any workflow. If you see this
 happen, say so; it means the agent short-circuited the workflow.
 
 To work through review feedback on an MR that already exists, install the
-separate [`gitlab-mr-review`](https://github.com/yf-tools/gitlab-mr-review)
-power — that's a distinct task from the Jira ticket lifecycle this power
+separate [`merge-flow`](https://github.com/yf-tools/merge-flow)
+plugin — that's a distinct task from the Jira ticket lifecycle this plugin
 covers, so it isn't bundled here.
-
 
 ## Without Jira tools
 
@@ -195,6 +195,8 @@ What it will and won't do on its own:
 - Stops on a ticket already `Done`/`Closed`/`Merged` — starting fresh work on finished work is nearly always a wrong key
 - Stops on a ticket `In Progress` under someone else — two people on one ticket is worth a question first
 - On closing: stops when the branch's ticket key disagrees with the key the user named — neither wins, because either could be the mistake
+- Never creates a ticket in Jira (`jira-create`) without showing you the full preview (Summary, Issue Type, Priority, Sprint, Description) first
+- Never modifies or moves sprint assignments without explicit user confirmation; existing active sprints are always preserved
 - Never transitions a Jira ticket without confirmation
 - Never discards uncommitted work without showing you the diff first, per file
 - Never switches branches over a dirty tree without warning
@@ -208,6 +210,15 @@ What it will and won't do on its own:
 - Discovers review conventions by reading each candidate file's **description** rather than matching on filenames — a checklist called `pre-flight.md` is found as reliably as one called `code-review.md`, and it's offered to you before being applied
 - Reports failures as failures — it won't claim a transition or MR succeeded when
   it errored
+
+## Best Practices
+
+- Run `git-prep.mjs` at the start of a ticket workflow before assuming any branch name or commit format
+- Nothing project-specific is hardcoded: the Jira prefix comes from the actual ticket key, and the integration branch, branch prefixes, and commit format come from the repository
+- Treat `git.integrationBranch` as a candidate, not proof of intent. Existing MR/PR base wins; otherwise use the epic-aware target explicitly confirmed with the user and preserve that `{TARGET}` through review and MR creation
+- Ask for explicit confirmation before any Jira status transition — never transition automatically
+- Ask before discarding uncommitted work. The only destructive step in these workflows requires showing the diff and getting per-file confirmation first
+- The navigation guide in `jira-pull` applies to tickets with a reachable screen or flow; it's skipped for tooling, CI, dependency and pure-refactor work
 
 ## Licence
 

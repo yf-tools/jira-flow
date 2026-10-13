@@ -1,0 +1,21 @@
+{
+  "name": "jira-flow",
+  "version": "1.0.0",
+  "description": "End-to-end Jira ticket workflow plugin for AI assistants (Antigravity, Kiro, Claude Code, Cursor, Windsurf, VS Code)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "preflight": "node preflight.mjs"
+  },
+  "keywords": [
+    "jira",
+    "atlassian",
+    "git",
+    "gitlab",
+    "github",
+    "workflow",
+    "agent-plugins"
+  ],
+  "author": "Youssef Fathalla",
+  "license": "MIT"
+}

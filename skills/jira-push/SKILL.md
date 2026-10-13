@@ -9,9 +9,9 @@ Follow this executive workflow when closing a ticket, wrapping up work, or openi
 
 **Dry-Run / Test Mode:** Activated ONLY when the user explicitly includes the flag `--dry-run` or `--test-mode` (or phrases like `simulate only`). Never trigger on generic words like "test", "testing", or "write tests" so it never conflicts with regular testing or test-writing tasks:
 - Perform all read, review, staging checks, and reviewer lookup steps.
-- 🛑 **MANDATORY**: You MUST call the `ask_question` tool with clean, friendly choices (and the natural write-in field). Do NOT skip the question modal or print the summary prematurely.
-- Once the user answers the modal, do NOT perform any mutating actions (do not `git commit`, do not `git push`, do not `glab mr create`, do not transition Jira).
-- Only AFTER the user responds to the question modal, print a clear `[Dry-Run Summary]` detailing what actions would have been taken.
+- 🛑 **MANDATORY**: You MUST solicit user choice via the `ask_question` tool (or formatted chat options if `ask_question` is unavailable in your IDE) with clean, friendly choices. Do NOT skip the question step or print the summary prematurely.
+- Once the user answers the choices, do NOT perform any mutating actions (do not `git commit`, do not `git push`, do not `glab mr create`, do not transition Jira).
+- Only AFTER the user responds to the question modal or chat prompt, print a clear `[Dry-Run Summary]` detailing what actions would have been taken.
 
 > For edge cases regarding assignee mismatches, 404s, or dirty branches, see [references/mistakes.md](./references/mistakes.md).
 
@@ -74,7 +74,7 @@ git diff origin/{TARGET}...HEAD --stat
 If review guidance or formatting edits modify files after this point, loop back through the definitive staged review and display the updated diff.
 
 🛑 **Stop and present the staged diff with the validation evidence block. Wait for user approval before Step 3.**
-Use the `ask_question` tool to solicit approval (e.g. `["(Recommended) Approve and commit", "I will modify files first", "Cancel"]`). The user can also type custom instructions in the write-in input.
+Use the `ask_question` tool (or format clear choices in chat if `ask_question` is not available in your IDE) to solicit approval (e.g. `["(Recommended) Approve and commit", "I will modify files first", "Cancel"]`). The user can also type custom instructions in the write-in input.
 
 ---
 
@@ -101,7 +101,7 @@ If `--no-verify` was explicitly approved by the user, pass it privately to git p
 1. **Parameters:** Confirm all six parameters individually with the user before creation. **Never merge Assignee and Reviewer into one item, and never assume Assignee without verifying:**
    - 1. Target: authoritative `{TARGET}`
    - 2. Title: formatted with ticket key
-   - 3. Description: from `mrTemplate.content`
+   - 3. Description: from `mrTemplate.content` (or standard fallback template if repo has none)
    - 4. **Assignee:** Explicitly confirm the username to assign (e.g. current username or designated assignee).
    - 5. **Reviewer:** Resolved from recent MRs or user input.
    - 6. Draft status: Draft or Ready.

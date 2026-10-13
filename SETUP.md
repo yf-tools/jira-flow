@@ -1,6 +1,6 @@
 # Team Setup & Installation Guide (JiraFlow)
 
-This guide walks you through setting up **JiraFlow** on your machine in 5 minutes. Once installed, it automates your entire Jira ticket lifecycle (`jira-pull` to onboard and `jira-push` to commit and open Merge Requests).
+This guide walks you through setting up **JiraFlow** on your machine in 5 minutes. Once installed, it automates your entire Jira ticket lifecycle (`jira-create` to standardize tickets, `jira-pull` to onboard, and `jira-push` to commit and open Merge Requests).
 
 ---
 
@@ -12,17 +12,20 @@ Before using JiraFlow, verify that the following tools are installed:
 | :--- | :---: | :--- | :--- |
 | **Git** | Any modern version | `git --version` | Standard install / pre-installed |
 | **Node.js** | `v18.0.0+` | `node -v` | [nodejs.org](https://nodejs.org/) |
-| **GitLab CLI (`glab`)** | `v1.30+` | `glab --version` | `winget` (Win) / `brew` (Mac) / `apt` (Linux) |
+| **GitLab CLI (`glab`)** | `v1.30+` | `glab --version` | `winget` (Win) / `brew` (Mac) / `apt` (Linux) *(If using GitLab)* |
+| **GitHub CLI (`gh`)** | `v2.20+` | `gh --version` | `winget` (Win) / `brew` (Mac) / `apt` (Linux) *(If using GitHub)* |
 | **Atlassian MCP** | — | Configured in IDE | See Step 3 below |
 
 > [!NOTE]
-> You do **not** need the GitLab MCP server. JiraFlow uses the official `glab` CLI under the hood to ensure full repository context.
+> You do **not** need the GitLab or GitHub MCP servers. JiraFlow uses the official `glab` and `gh` CLIs directly to ensure full repository context without working-directory restrictions.
 
 ---
 
-## 2. Authenticate GitLab CLI (`glab`)
+## 2. Authenticate Git Host CLI (`glab` or `gh`)
 
-JiraFlow uses `glab` to inspect MRs, push branches, and create merge requests.
+JiraFlow uses `glab` or `gh` to inspect MRs/PRs, push branches, and create merge requests.
+
+### If using GitLab
 
 1. Open your terminal and run:
 
@@ -40,7 +43,20 @@ JiraFlow uses `glab` to inspect MRs, push branches, and create merge requests.
    glab auth status
    ```
 
-   *(You should see `Logged in to <host> as <your-username>` with green checkmarks).*
+### If using GitHub
+
+1. Open your terminal and run:
+
+   ```bash
+   gh auth login
+   ```
+
+2. Follow the interactive prompts to log in via browser or token.
+3. Verify authentication:
+
+   ```bash
+   gh auth status
+   ```
 
 ---
 
@@ -48,7 +64,7 @@ JiraFlow uses `glab` to inspect MRs, push branches, and create merge requests.
 
 JiraFlow connects to your Jira board via the official Atlassian Remote MCP server.
 
-Add the `atlassian-mcp` definition to your IDE's MCP settings (e.g. Antigravity, Kiro, Cursor, or Claude Code `mcp.json`):
+Add the `atlassian-mcp` definition to your IDE's MCP settings (e.g. Antigravity, Kiro, Claude Code, Cursor, or VS Code):
 
 ```json
 {
@@ -67,9 +83,10 @@ Add the `atlassian-mcp` definition to your IDE's MCP settings (e.g. Antigravity,
 ```
 
 > [!TIP]
-> The first time this server runs, a browser window will open asking you to sign in to your Atlassian account and authorize access. No manual API tokens or passwords needed.
-> 
-> For official IDE setup guides across Cursor, VS Code, and others, refer to the [Official Atlassian MCP Documentation](https://support.atlassian.com/jira-software-cloud/docs/use-atlassian-mcp-server-with-an-ide/).
+>
+> - The first time this server runs, a browser window will open asking you to sign in to your Atlassian account and authorize access. No manual API tokens or passwords needed.
+> - **Windows Note:** If your IDE reports `'npx' is not recognized` or fails to spawn the command, change `"command": "npx"` to `"command": "npx.cmd"`.
+> - For official IDE setup guides across Cursor, VS Code, and others, refer to the [Official Atlassian MCP Documentation](https://support.atlassian.com/jira-software-cloud/docs/use-atlassian-mcp-server-with-an-ide/).
 
 ---
 
@@ -79,11 +96,19 @@ Add the `atlassian-mcp` definition to your IDE's MCP settings (e.g. Antigravity,
 
 Copy the `jira-flow` directory into your personal plugin configuration folder:
 
-```text
-~/.gemini/config/plugins/jira-flow
-```
+- **Windows:**
 
-Or use the Plugins Manager UI in Antigravity to add the folder.
+  ```text
+  %USERPROFILE%\.gemini\config\plugins\jira-flow
+  ```
+
+- **macOS / Linux:**
+
+  ```text
+  ~/.gemini/config/plugins/jira-flow
+  ```
+
+Or use the Plugins Manager UI in Antigravity to add the folder directly.
 
 ### Option B: In Kiro
 
@@ -92,13 +117,45 @@ In Kiro's Powers panel:
 - Click **Add power from folder** (or clone the repository locally).
 - Select the `jira-flow` directory.
 
-### Option C: In Cursor / Windsurf / VS Code
+### Option C: In Claude Code
 
-Copy the `jira-flow` folder into your project root or your global AI prompt directory.
+Load the entire plugin directory or copy the skills:
+
+- **Load directly (recommended):**
+  - Run with `claude --plugin-dir <path-to-jira-flow>`
+- **Global Skills Directory:**
+  - Windows: `%USERPROFILE%\.claude\skills\` (copy `jira-create`, `jira-pull`, and `jira-push` folders)
+  - macOS / Linux: `~/.claude/skills/` (copy `jira-create`, `jira-pull`, and `jira-push` folders)
+- **Project-Specific Directory:**
+  - Copy `skills/jira-create`, `skills/jira-pull`, and `skills/jira-push` into `.claude/skills/` within your project repository.
+
+### Option D: In Cursor / Windsurf / VS Code
+
+- Copy the `jira-flow` folder into your project root or reference `skills/jira-create/SKILL.md`, `skills/jira-pull/SKILL.md`, and `skills/jira-push/SKILL.md` from your `.cursorrules`, `.windsurfrules`, or `AGENTS.md`.
 
 ---
 
-## 5. Verify Your Setup (Zero-Risk Dry Run)
+## 5. Built-in Preflight Diagnostic Script
+
+Before starting your first ticket, run the diagnostic check in your terminal:
+
+```bash
+npm run preflight
+```
+
+*(or `node preflight.mjs --repo .`)*
+
+This verifies:
+
+- ✅ Node.js runtime version (`>= 18`)
+- ✅ Git installation & repository validity
+- ✅ GitLab (`glab`) or GitHub (`gh`) CLI authentication
+- ✅ Atlassian / Jira MCP configuration in your IDE
+- ✅ Bundled helper scripts (`git-prep`, `pre-push-check`, `reviewer-lookup`)
+
+---
+
+## 6. Verify Your Setup (Zero-Risk Dry Run)
 
 To confirm everything is working without touching real Git branches or Jira statuses, run a test dry run in your chat:
 

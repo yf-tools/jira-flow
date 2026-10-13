@@ -12,9 +12,9 @@ Follow this executive workflow **before writing any code** when starting a Jira 
 
 **Dry-Run / Test Mode:** Activated ONLY when the user explicitly includes the flag `--dry-run` or `--test-mode` (or phrases like `simulate only`). Never trigger on generic words like "test", "testing", or "write tests" so it never conflicts with regular testing or test-writing tasks:
 - Always run the full onboarding flow (Step 1 to Step 3) regardless of whether the ticket is already `In Progress` or an audit task.
-- 🛑 **MANDATORY**: You MUST call the `ask_question` tool with clean, friendly options (and the natural write-in field). Do NOT skip the question modal or print the summary prematurely.
-- Once the user answers the modal, do NOT perform any mutating actions (do not cut or switch git branches, do not edit Jira assignees or transitions).
-- Only AFTER the user responds to the question modal, print a clear `[Dry-Run Summary]` detailing what actions would have been taken.
+- 🛑 **MANDATORY**: You MUST solicit user input using the `ask_question` tool (or formatted chat options if `ask_question` is not available in your IDE) with clean, friendly choices. Do NOT skip the question step or print the summary prematurely.
+- Once the user answers the choices, do NOT perform any mutating actions (do not cut or switch git branches, do not edit Jira assignees or transitions).
+- Only AFTER the user responds to the question modal or chat prompt, print a clear `[Dry-Run Summary]` detailing what actions would have been taken.
 - Stop immediately after the summary without starting implementation or code changes.
 
 **Skill Boundary:** This skill ends at implementation. It does not commit, push, or open a merge request — that's `jira-push`, invoked separately by the user.
@@ -30,11 +30,12 @@ Follow this executive workflow **before writing any code** when starting a Jira 
 
    ```text
    getJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY},
-                  fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "parent", "timetracking", "comment", "issuelinks", "components", "customfield_10014"]
+                  fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "parent", "timetracking", "comment", "issuelinks", "components", "customfield_10014", "customfield_10020"]
    ```
 
 3. **Resolve Parent & Epic:** Resolve direct parent to epic with a bounded lookup; use display-name-based Epic Link only as a verified fallback. See [references/hierarchy.md](./references/hierarchy.md).
-4. **Sanity Check:** Check assignee against `atlassianUserInfo`. Flag if assigned to someone else; offer assignment if unassigned. If status is `Done`/`Merged`/`Closed` or `In Progress` under another person, stop.
+4. **Check Sprint Status:** Inspect `customfield_10020` (or sprint objects) per [references/sprints.md](./references/sprints.md). If active, note `Sprint: {name} (Active)`. If in Backlog or future sprint, query active sprint via `project = '{PROJECT_KEY}' AND sprint in openSprints()` to prepare the offer for Step 3.
+5. **Sanity Check:** Check assignee against `atlassianUserInfo`. Flag if assigned to someone else; offer assignment if unassigned. If status is `Done`/`Merged`/`Closed` or `In Progress` under another person, stop.
 
 ---
 
@@ -48,12 +49,15 @@ node "<this-skill-dir>/scripts/git-prep.mjs" --workspace "<repo-path>" --ticket 
 
 > **Locating the script:** Resolve `git-prep.mjs` in the `scripts/` directory relative to this `SKILL.md` file (i.e. `<this-skill-dir>/scripts/git-prep.mjs`). Pass `--workspace` pointing to the target repository root.
 >
-> **GitLab MCP vs CLI:** The `gitlab` MCP daemon runs outside the repository directory, causing `glab_mr_*` tools to fail with `fatal: not a git repository`. When checking MRs, always use `run_command` with the `glab` CLI directly inside the workspace directory (e.g. `glab mr list --source-branch {branch}`, `glab mr view {id}`) or use `glab_api` with explicit project ID.
+> **Git Host CLI vs MCP:** The single-repo `gitlab` MCP daemon runs outside the repository directory, causing `glab_mr_*` tools to fail with `fatal: not a git repository`. When checking MRs/PRs, always use `run_command` with the `glab` or `gh` CLI directly inside the workspace directory (e.g. `glab mr list --source-branch {branch}`, `glab mr view {id}`, `gh pr list --head {branch}`).
 
 The script returns:
 - `integrationBranch` (`develop` or `main`) & `defaultBranch`
 - `branchNaming.dominantPrefixes` (e.g. `fix`, `feature`)
 - `commitConvention.suggestedFormat`
+- `vcsHost`: `{ type, cli, remoteUrl }` (GitLab, GitHub, Bitbucket)
+- `mrTemplate`: `{ path, content }`
+- `project`: `{ packageManager, hasPrePushHook, hasPreCommitHook, linter, testRunner }`
 - `ticket`: `{ exists, local, remote, name, isMergedIntoTarget, mergedInto }`
 - `epic`: `{ exists, local, remote, name }`
 - `detached` and `isDirty` (`uncommittedFiles`)
@@ -88,9 +92,9 @@ Present one structured message asking all necessary questions before acting:
 - **Graceful Fallback (Kiro, Cursor, Windsurf, VS Code):** If `ask_question` is NOT registered in your active tools, format the 3 questions clearly in chat markdown with numbered options, end your turn, and wait for the user's reply before proceeding.
 
 **Question Structure (Modal Carousel or Chat Fallback):**
-Provide 3 distinct questions (`1 of 3`, `2 of 3`, `3 of 3`):
+Provide distinct questions (3 questions standard, or 4 if sprint assignment is needed):
 1. **Question 1 (Branch Setup):**
-   - **Recommended option:** Must be the clean short branch name `{type}/{TICKET-KEY}` (e.g. `feature/BIDAYA-2630` or `fix/BIDAYA-2630`) from `{TARGET}`. Never recommend long slugged names as option 1.
+   - **Recommended option:** Must be the clean short branch name `{type}/{TICKET-KEY}` (e.g. `feature/PROJ-101` or `fix/PROJ-101`) from `{TARGET}`. Never recommend long slugged names as option 1.
    - Alternate options: Long descriptive branch (e.g. `feature/{TICKET-KEY}-slug`), stay on current branch, or cancel.
 2. **Question 2 (Assignment & Status):**
    - **Recommended option:** Assign ticket to me and move to In Progress.
@@ -98,6 +102,9 @@ Provide 3 distinct questions (`1 of 3`, `2 of 3`, `3 of 3`):
 3. **Question 3 (Time Estimate):**
    - **Recommended option:** Propose estimate (e.g. `2d`).
    - Alternate options: Alternate estimate or skip estimate for now.
+4. **Question 4 (Sprint Assignment — ONLY when ticket is in Backlog and an active sprint was found):**
+   - **Recommended option:** Add ticket to current sprint `{activeSprint.name}`.
+   - Alternate option: Leave in Backlog (no sprint assignment).
 
 - Keep phrasing friendly and conversational. Avoid robotic AI markers like brackets `[FE]`, em dashes `—`, or artificial formulaic tags.
 - Note: When using `ask_question`, it automatically provides a write-in text field by default on every question. In chat fallback, mention that the user can pick a number or type custom text.
@@ -115,12 +122,13 @@ Provide 3 distinct questions (`1 of 3`, `2 of 3`, `3 of 3`):
 
 ---
 
-## Step 5 — Assign & Move to In Progress
+## Step 5 — Assign, Move to In Progress & Assign Sprint
 
 Right after branch creation, execute approved changes:
 
 1. **Assignment is an explicit action:** If unassigned and approved, call `editJiraIssue` with the user's account ID.
-2. **Positive Transition Safety:**
+2. **Sprint assignment:** If approved in Step 3, assign to active sprint via `editJiraIssue` (`fields: { [sprintFieldKey]: activeSprint.id }`). See [references/sprints.md](./references/sprints.md).
+3. **Positive Transition Safety:**
    - The safe test is a positive one (not a safe-list in disguise). Select a transition only when `to.statusCategory.key == "indeterminate"` and the name clearly signifies active development ("In Progress", "In Development", "Start work").
    - When nothing reachable is unambiguously active, stop and ask.
    - For 2-hop transitions (e.g. `TO REVIEW` $\rightarrow$ `To Do` $\rightarrow$ `In Progress`) or resolution blocks, consult [references/transitions.md](./references/transitions.md).

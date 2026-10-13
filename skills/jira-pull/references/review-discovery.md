@@ -14,7 +14,7 @@ Checklists are named inconsistently across teams:
 
 ### Search Rules
 
-1. **Check existing rules and instruction files:** Look into AI instruction directories (`.cursor/rules/`, `.agents/rules/`, `.kiro/steering/`, `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`).
+1. **Check existing rules and instruction files:** Look into AI instruction directories and files (`.cursor/rules/`, `.cursorrules`, `.windsurfrules`, `.claude/rules/`, `.agents/rules/`, `.kiro/steering/`, `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`).
 2. **Judge by description:** Read the header or description of candidate files. If a file describes itself as containing review rules, coding quality gates, or pre-commit checklists, select it.
 3. **Offer, don't silently enforce:** Present found checklists to the user:
    > "Found review checklist in `{path}` ({description}). Would you like me to run through it against the changed files before we conclude setup?"
