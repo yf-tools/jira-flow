@@ -268,6 +268,54 @@ if (isMain) {
     targetDiffStat = git(["diff", "HEAD~1...HEAD", "--stat"]) || "";
   }
 
+  // Behind and ahead commit counts against target branch
+  let behindTargetCount = 0;
+  let aheadTargetCount = 0;
+  if (target && target !== "HEAD~1") {
+    for (const r of knownRemotes) {
+      const behindRaw = git(["rev-list", "--count", `HEAD..${r}/${target}`]);
+      if (behindRaw !== null && !isNaN(parseInt(behindRaw, 10))) {
+        behindTargetCount = parseInt(behindRaw, 10);
+        break;
+      }
+    }
+    if (behindTargetCount === 0) {
+      const localBehindRaw = git(["rev-list", "--count", `HEAD..${target}`]);
+      if (localBehindRaw !== null && !isNaN(parseInt(localBehindRaw, 10))) {
+        behindTargetCount = parseInt(localBehindRaw, 10);
+      }
+    }
+
+    for (const r of knownRemotes) {
+      const aheadRaw = git(["rev-list", "--count", `${r}/${target}..HEAD`]);
+      if (aheadRaw !== null && !isNaN(parseInt(aheadRaw, 10))) {
+        aheadTargetCount = parseInt(aheadRaw, 10);
+        break;
+      }
+    }
+    if (aheadTargetCount === 0) {
+      const localAheadRaw = git(["rev-list", "--count", `${target}..HEAD`]);
+      if (localAheadRaw !== null && !isNaN(parseInt(localAheadRaw, 10))) {
+        aheadTargetCount = parseInt(localAheadRaw, 10);
+      }
+    }
+  }
+
+  // Detect unpushed commits (either vs upstream tracking ref, or vs target branch)
+  let unpushedCommits = [];
+  const upstreamLog = git(["log", "@{u}..HEAD", "--oneline", "-n", "10"]);
+  if (upstreamLog) {
+    unpushedCommits = upstreamLog.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  } else if (target && target !== "HEAD~1") {
+    for (const r of knownRemotes) {
+      const targetCommits = git(["log", `${r}/${target}..HEAD`, "--oneline", "-n", "10"]);
+      if (targetCommits) {
+        unpushedCommits = targetCommits.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        break;
+      }
+    }
+  }
+
   const allCheckFiles = new Set([...stagedFiles, ...unstagedFiles, ...untrackedFiles]);
   const suspiciousFiles = [...allCheckFiles].filter(isSuspiciousFile);
 
@@ -277,6 +325,9 @@ if (isMain) {
     stagedStat,
     unstagedFiles,
     untrackedFiles,
+    unpushedCommits,
+    behindTargetCount,
+    aheadTargetCount,
     targetDiffStat,
     suspiciousFiles,
     vcsHost: detectVcsHost(knownRemotes),

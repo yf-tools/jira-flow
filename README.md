@@ -39,11 +39,13 @@ For detailed workflow steps, see the skills in [`skills/`](skills/) ([`jira-crea
 - ❌ **The Problem We Faced:**
   - Every developer names branches differently (`fix-button`, `test-bug`, `PROJ-1234-some-random-slug`).
   - Developers accidentally cut branches from stale or wrong bases (e.g. cutting from `main` instead of `develop`).
+  - Developers cutting branches prematurely for bugs or QA tickets that are already resolved on remote, invalid, or test-only, cluttering git with abandoned branches.
   - People start coding without assigning the ticket to themselves in Jira or forgetting to move it to *In Progress*.
   - On QA-rejected tickets, developers accidentally checkout an old branch that was already merged, resulting in messy git history.
 
 - 💡 **How It Solves It:**
   - **Auto-detects Git conventions:** Runs an automatic check (`git-prep.mjs`) that inspects your repo to detect the integration branch (`develop` or `main`), commit conventions, and branch prefixes (`fix/`, `feature/`).
+  - **Investigation & Reproduction Gate:** For bugs and QA-reported defects, pulls latest remote base first and investigates before cutting any branch. If already resolved or no code change is needed, it closes/comments on Jira with zero git pollution.
   - **Prevents merge mistakes:** Alerts you immediately if the ticket’s previous branch was already merged, proposing a clean fresh QA-fix branch instead.
   - **One-click board sync:** Assigns the ticket to you, moves it to *In Progress*, sets the time estimate, and switches branches safely in a single turn.
 
@@ -53,12 +55,14 @@ For detailed workflow steps, see the skills in [`skills/`](skills/) ([`jira-crea
 
 - ❌ **The Problem We Faced:**
   - Developers accidentally pushing secret files (`.env`, private keys, or 100MB build artifacts) to GitLab/GitHub.
+  - Out-of-sync branches: Pushing code after days of work only to discover merge conflicts or broken CI pipelines because new commits were merged into `develop`.
   - Forgetting to run linters/tests, discovering CI pipeline failures 15 minutes after pushing.
   - Forgetting to log time (worklog) in Jira, forgetting to transition the ticket to *In Review*, and forgetting to tag reviewers on the MR.
   - Writing tedious, empty MR descriptions like *"fixed bug"*.
 
 - 💡 **How It Solves It:**
   - **Pre-push safety guard:** Runs `pre-push-check.mjs` to block leaks of `.env` files or secret tokens before Git touches the remote server.
+  - **Base Refresh & Conflict Gate:** Checks if your branch is behind the base branch (`develop`/`main`) and offers a clean rebase or merge, resolving conflicts locally before pushing so MRs merge green.
   - **Smart reviewer lookup:** Automatically finds who actively works on these files in the repo and suggests them as reviewers on GitLab/GitHub.
   - **Full automatic wrap-up:** Pushes the branch, generates an MR with a clean description, logs your work hours to Jira, and moves the ticket to *In Review*.
 

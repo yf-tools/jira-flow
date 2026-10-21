@@ -22,6 +22,15 @@ test("reviewer-lookup.mjs CLI executes successfully and outputs valid JSON", () 
   assert.ok(data.candidates.includes("youssefathalla"));
 });
 
+test("reviewer-lookup.mjs CLI with empty query excludes current user from default candidates", () => {
+  const stdout = execFileSync("node", [scriptPath, "--workspace", process.cwd()], {
+    encoding: "utf8",
+  });
+  const data = JSON.parse(stdout);
+  assert.ok(Array.isArray(data.candidates));
+  assert.strictEqual(data.candidates.includes("youssefathalla"), false);
+});
+
 test("findReviewers matching logic resolves display names and usernames", () => {
   const userMap = new Map();
   recordUser(userMap, "jdoe", "John Doe");

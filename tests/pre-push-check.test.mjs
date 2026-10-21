@@ -20,6 +20,9 @@ test("pre-push-check.mjs CLI executes successfully and outputs valid JSON", () =
   assert.ok(typeof data.stagedStat === "string");
   assert.ok(Array.isArray(data.unstagedFiles));
   assert.ok(Array.isArray(data.untrackedFiles));
+  assert.ok(Array.isArray(data.unpushedCommits));
+  assert.ok(typeof data.behindTargetCount === "number");
+  assert.ok(typeof data.aheadTargetCount === "number");
   assert.ok(typeof data.targetDiffStat === "string");
   assert.ok(Array.isArray(data.suspiciousFiles));
   assert.ok(data.vcsHost && typeof data.vcsHost.type === "string");

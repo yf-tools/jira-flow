@@ -16,5 +16,6 @@ Closing writes to shared state: a commit, a push, an MR other people get notifie
 | Detached HEAD | Step 1 | 🛑 **Stop**. |
 | Nothing to commit (clean tree, no unpushed commits) | Steps 2–3 | ⚠️ **Flag** — say there's nothing to close and ask what they expected. |
 | An MR already exists for this branch | Step 5 | ⚠️ **Flag** — update it, don't open a second. |
+| Branch is behind target branch (out-of-sync with develop/main) | Step 3.5 | ⚠️ **Flag** — alert developer that base branch has received new commits. Propose rebasing or merging origin/{TARGET} to avoid merge conflicts on GitLab/GitHub. |
 
 The 🛑 cases in Steps 0–1 must be settled **before** Step 2 stages anything.

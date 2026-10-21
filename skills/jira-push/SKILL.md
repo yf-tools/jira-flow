@@ -73,16 +73,49 @@ git diff origin/{TARGET}...HEAD --stat
 
 If review guidance or formatting edits modify files after this point, loop back through the definitive staged review and display the updated diff.
 
-🛑 **Stop and present the staged diff with the validation evidence block. Wait for user approval before Step 3.**
-Use the `ask_question` tool (or format clear choices in chat if `ask_question` is not available in your IDE) to solicit approval (e.g. `["(Recommended) Approve and commit", "I will modify files first", "Cancel"]`). The user can also type custom instructions in the write-in input.
+🛑 **Stop and present the unified delivery package with the validation evidence block.**
+Include:
+- Staged diff & validation evidence (`diagnostics, tests, lint, smoke, build`)
+- Proposed commit message (`{type}({TICKET-KEY}): description`)
+- Target branch (`{TARGET}`) & suggested reviewer (resolved via `reviewer-lookup.mjs --target {TARGET}`)
+- Base sync status (`behindTargetCount`)
+
+Use `ask_question` (or format clear choices in chat) to solicit approval in a single turn:
+1. `(Recommended) Approve and execute all (Commit, sync/push, create/update MR, move Jira to review)`
+2. `Commit and push only (skip MR creation)`
+3. `Modify files or edit details first`
+4. `Cancel`
+
+When Option 1 is approved, execute Steps 3 through 6 seamlessly in a single pipeline without unnecessary modal pauses.
 
 ---
 
 ## Step 3 — Commit
 
-Once the user approves the staged diff, format the commit using `git.commitConvention.suggestedFormat`. When conventional commits are used, format as `{type}({TICKET-KEY}): description`. See [references/commit.md](./references/commit.md).
+Format the commit using `git.commitConvention.suggestedFormat`. When conventional commits are used, format as `{type}({TICKET-KEY}): description`. See [references/commit.md](./references/commit.md).
 
 Execute `git commit -m "{message}"`.
+
+---
+
+## Step 3.5 — Base Refresh & Merge Conflict Check (Sync before push)
+
+Before pushing, inspect if new commits were merged into `{TARGET}` while this ticket was being worked on:
+
+1. **Check if behind target:** `pre-push-check.mjs` returns `behindTargetCount`. If `behindTargetCount > 0`:
+   > ⚠️ **Base Branch Updated**: `{TARGET}` has received `{behindTargetCount}` new commit(s) on remote since this branch diverged. Syncing now ensures your MR will merge cleanly without conflicts and pass CI on the first try.
+
+2. **Offer sync options:**
+   - **Option 1 (Recommended):** `Rebase onto origin/{TARGET} ('git rebase origin/{TARGET}')` — keeps commit history clean and linear.
+   - **Option 2:** `Merge origin/{TARGET} ('git merge origin/{TARGET}')` — creates a standard merge commit.
+   - **Option 3:** `Push as-is without syncing` — skip sync and proceed directly to push.
+
+3. **In-Flight Conflict Resolution:**
+   If Git reports merge conflicts during rebase or merge:
+   - Identify conflicting files via `git status`.
+   - Explain the conflicting sections (`<<<<<<< HEAD ... >>>>>>>`).
+   - Guide the user to resolve each conflict, stage the resolved files (`git add <file>`), and continue (`git rebase --continue` or `git commit`).
+   - Re-run targeted validation tests (`npm test`, etc.) to confirm integrated code compiles and passes tests before pushing.
 
 ---
 
@@ -92,40 +125,26 @@ Push the current branch to origin:
 ```bash
 git push -u origin {branch}
 ```
+*(If the branch was rebased after having been previously pushed to remote, use `git push --force-with-lease origin {branch}` to push safely without overwriting remote changes).*
 If `--no-verify` was explicitly approved by the user, pass it privately to git push.
 
 ---
 
-## Step 5 — Prepare & Open Merge Request
+## Step 5 — Prepare & Open / Update Merge Request
  
-1. **Parameters:** Confirm all six parameters individually with the user before creation. **Never merge Assignee and Reviewer into one item, and never assume Assignee without verifying:**
-   - 1. Target: authoritative `{TARGET}`
-   - 2. Title: formatted with ticket key
-   - 3. Description: from `mrTemplate.content` (or standard fallback template if repo has none)
-   - 4. **Assignee:** Explicitly confirm the username to assign (e.g. current username or designated assignee).
-   - 5. **Reviewer:** Resolved from recent MRs or user input.
-   - 6. Draft status: Draft or Ready.
-2. **Reviewer Resolution:** Use the helper script to resolve usernames:
-   ```bash
-   node "<this-skill-dir>/scripts/reviewer-lookup.mjs" --workspace "<repo-path>" --query {name}
-   ```
-3. **Execution:** Use `glab mr create` or `gh pr create` CLI commands. Always pass `--assignee "{assignee}"` (or `-a "{assignee}"`) explicitly since GitLab leaves it unassigned otherwise. The `glab_mr_*` MCP tools are unusable due to cwd restrictions (they fail with `fatal: not a git repository`). See [references/mr-creation.md](./references/mr-creation.md).
-
-🛑 **Gate: User Confirmation Required Before Creating MR.**
-- **If `ask_question` tool is available in your environment (Antigravity, Claude Code):** You MUST invoke `ask_question` with the question structure below.
-- **Graceful Fallback (Kiro, Cursor, Windsurf, VS Code):** If `ask_question` is NOT registered in your active tools, format the questions clearly in chat markdown with numbered options, end your turn, and wait for the user's reply before proceeding.
-
-**Question Structure (Modal Carousel or Chat Fallback):**
-Provide distinct questions (`1 of 2` or `1 of 3`):
-1. **Question 1 (MR Readiness & Target):**
-   - **Recommended option:** Create draft MR (or ready MR) targeting `{TARGET}`.
-   - Alternate options: Change target branch, or cancel MR creation.
-2. **Question 2 (Reviewers & Assignee):**
-   - **Recommended option:** Assign to me and add suggested reviewer `{reviewer}`.
-   - Alternate options: Add different reviewer, or create without reviewer for now.
-
-- Keep phrasing friendly and conversational. Avoid robotic AI markers like brackets, em dashes, or stiff formulaic tags.
-- Note: When using `ask_question`, it automatically provides a write-in text field by default on every question. In chat fallback, mention that the user can pick a number or type custom text.
+1. **Check for Existing Open MR:**
+   Before creating, inspect whether an MR/PR is already open for `{branch}`:
+   - GitLab: `glab mr list --source-branch {branch}`
+   - GitHub: `gh pr list --head {branch}`
+2. **If MR already exists:**
+   - Inform the user: *"MR !{id} / #{id} already exists for branch `{branch}` and was updated with the latest pushed commit(s)."*
+   - If marked `Draft` and Ready status was requested:
+     - GitLab: `glab mr update {id} --ready`
+     - GitHub: `gh pr ready {id}`
+   - Proceed directly to Step 6 without attempting a duplicate `mr create`.
+3. **If creating new MR:**
+   - Reviewer resolution: Resolve suggested reviewer via `reviewer-lookup.mjs --workspace "<repo-path>" --target {TARGET}` (filters out self and inspects touched file contributors).
+   - Use `glab mr create` or `gh pr create` CLI commands. Always pass `--assignee "{assignee}"` (or `-a "{assignee}"`) explicitly since GitLab leaves it unassigned otherwise. See [references/mr-creation.md](./references/mr-creation.md).
 
 ---
 
@@ -139,10 +158,17 @@ Provide distinct questions (`1 of 2` or `1 of 3`):
 
 ## Step 7 — Log Time Spent (Worklog)
 
-Display current estimate and total time logged, then ask what duration to log. Once confirmed, execute:
+Display current estimate and total time logged, then ask what duration to log.
+Normalize common shorthand inputs to Jira format:
+- `1.5h` → `1h 30m`
+- `90m` → `1h 30m`
+- `0.5d` → `4h`
+
+Once confirmed, execute:
 ```text
 addWorklogToJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY}, timeSpent: "{duration}"
 ```
+*(If time tracking is disabled for this project, record as skipped without failing).*
 
 ---
 

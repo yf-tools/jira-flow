@@ -76,9 +76,54 @@ function recordUser(map, username, name) {
   }
 }
 
-function fetchReviewers(customWorkspace = workspace) {
+function getCurrentUserIdentities(customWorkspace = workspace) {
+  const set = new Set();
+  const gitName = run(gitBin, ["config", "user.name"], customWorkspace);
+  const gitEmail = run(gitBin, ["config", "user.email"], customWorkspace);
+  if (gitName) set.add(gitName.toLowerCase().trim());
+  if (gitEmail) {
+    const cleanEmail = gitEmail.toLowerCase().trim();
+    set.add(cleanEmail);
+    if (cleanEmail.includes("@")) {
+      set.add(cleanEmail.split("@")[0]);
+    }
+  }
+  return set;
+}
+
+function fetchReviewers(customWorkspace = workspace, targetBranch = null) {
   const reviewerMap = new Map(); // lowercase key -> { username, name }
   const host = detectVcsHost(customWorkspace);
+
+  // If target branch provided, prioritize contributors who modified the same files
+  if (targetBranch) {
+    const changedFilesRaw =
+      run(gitBin, ["diff", `origin/${targetBranch}...HEAD`, "--name-only"], customWorkspace) ||
+      run(gitBin, ["diff", `${targetBranch}...HEAD`, "--name-only"], customWorkspace) ||
+      "";
+    const changedFiles = changedFilesRaw
+      .split(/\r?\n/)
+      .map((f) => f.trim())
+      .filter(Boolean);
+    if (changedFiles.length > 0) {
+      const blameLog = run(
+        gitBin,
+        ["log", "-n", "20", "--format=%an|%ae", "--", ...changedFiles.slice(0, 10)],
+        customWorkspace
+      );
+      if (blameLog) {
+        for (const line of blameLog.split(/\r?\n/)) {
+          const parts = line.split("|");
+          const name = parts[0]?.trim();
+          const email = parts[1]?.trim();
+          if (name) {
+            const username = email && email.includes("@") ? email.split("@")[0] : name.toLowerCase().replace(/\s+/g, ".");
+            recordUser(reviewerMap, username, name);
+          }
+        }
+      }
+    }
+  }
 
   // If host is GitLab (or unknown), query glab
   if (host === "gitlab" || host === "unknown") {
@@ -175,8 +220,16 @@ function findReviewers(reviewerMap, q) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
-  const reviewerMap = fetchReviewers(workspace);
-  const { candidates, details } = findReviewers(reviewerMap, query);
+  const target = getArg("--target");
+  const reviewerMap = fetchReviewers(workspace, target);
+  let { candidates, details } = findReviewers(reviewerMap, query);
+
+  // If query is empty (default suggestions), exclude self so author is not recommended as own reviewer
+  if (!query) {
+    const selfIdentities = getCurrentUserIdentities(workspace);
+    candidates = candidates.filter((u) => !selfIdentities.has(u.toLowerCase()));
+    details = details.filter((d) => !selfIdentities.has(d.username.toLowerCase()) && (!d.name || !selfIdentities.has(d.name.toLowerCase())));
+  }
 
   process.stdout.write(
     JSON.stringify(
@@ -195,6 +248,7 @@ export {
   fetchReviewers,
   findReviewers,
   detectVcsHost,
+  getCurrentUserIdentities,
   recordUser,
   run,
 };

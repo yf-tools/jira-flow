@@ -16,12 +16,16 @@ A ticket key or URL is a single string that's easy to get wrong, and this workfl
 | Detached HEAD | Step 2.2 | 🛑 **Stop** — refuse to cut a branch from detached HEAD. |
 | Dirty working tree | Step 2.2 | 🛑 **Stop** — offer to stay/end ticket setup or create a named stash (`git stash push -u -m ...`). Never carry dirty work across or commit it blindly. |
 | Ticket not in active sprint (Backlog or Future) | Step 1 / 3 | ⚠️ **Flag** — check project active sprint via `openSprints()`. Offer to pull into current sprint or keep as-is. |
+| Cutting branch before investigating a Bug/QA ticket | Step 1 / 3 | ⚠️ **Flag** — Bug or QA ticket might already be resolved, invalid, or test-only. Propose "Investigate & test on {TARGET} first" to avoid wasted branch creation. |
+| Investigating code on stale local base branch | Step 3.5 | 🛑 **Stop** — always `git fetch origin {TARGET}` and fast-forward before searching code or verifying issues. |
+| Closing/resolving investigation ticket without logging time | Step 3.5 Case B | ⚠️ **Flag** — prompt user to log time spent investigating via `addWorklogToJiraIssue` so engineering hours are recorded. |
 
 ## Recovery Actions
 
-1. **Dirty working tree:** If uncommitted changes exist, give the user two choices:
+1. **Dirty working tree:** If uncommitted changes exist, give the user three choices:
+   - Carry changes onto the new branch (`git stash push -u -m "carry" && git checkout -b ... origin/{TARGET} && git stash pop`) if edits belong to this ticket.
+   - Create a named stash and leave behind for later.
    - Stay on current branch and abort ticket onboarding.
-   - Create a named stash so the tree is clean for checkout.
 2. **Assignee mismatch:** Ask explicitly: `"PROJ-123 is currently assigned to {name}. Did you mean to take over this ticket or start a different one?"`
 3. **Status conflict:** If already in a `done` category or active by someone else, stop and report the current status and assignee immediately.
 4. **Sprint unassigned or in future sprint:** If ticket has no active sprint, report: `"Ticket is in Backlog (no active sprint). Active sprint is {Sprint Name}."` Prompt user whether to assign it to current sprint during Step 3.
