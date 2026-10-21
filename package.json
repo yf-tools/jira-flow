@@ -1,6 +1,6 @@
 {
   "name": "jira-flow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "End-to-end Jira ticket workflow plugin for AI assistants (Antigravity, Kiro, Claude Code, Cursor, Windsurf, VS Code)",
   "type": "module",
   "scripts": {

@@ -196,12 +196,20 @@ PROJ-1234
 https://yoursite.atlassian.net/browse/PROJ-1234
 ```
 
-A bare key or URL means "start working on this ticket" and triggers the
-`jira-pull` workflow. It checks whether the ticket is in the active sprint (offering to add it if it's in the backlog), sets up the branch, assigns it to you, moves it to In Progress, and records your planned estimate.
+A bare key or URL means "start working on this ticket" and triggers the `jira-pull` workflow:
+
+- **Investigate & Test First (Zero Wasted Branches):** When starting a Bug, QA defect (`(QA)`), or Spike, it syncs the latest remote base branch (`develop`/`main`) and offers to investigate and test before cutting any branch. If the issue is already resolved on remote or test-only, you can post a verification comment with commit evidence, log your investigation time, and resolve the ticket—**with zero git branches created**. If a code fix is confirmed, it seamlessly cuts the branch and proceeds into implementation.
+- **Smart Git Setup:** Automatically detects if you are already standing on the ticket branch, offers to carry over bug reproduction edits, checks active sprint status, and cuts from the authoritative base.
+- **One-Click Jira Sync:** Assigns the ticket to you, moves it to *In Progress*, sets the **Start Date** to today (`YYYY-MM-DD`), and records your planned estimate.
 
 ### 3. Wrapping up work (`jira-push`)
 
-To finish up, say "close ticket", "jira-push", "wrap up", or "create an MR". It validates tests and linting, stages files safely, pushes the branch, opens the MR/PR with detected reviewers, moves Jira to Review, and logs time spent.
+To finish up, say "close ticket", "jira-push", "wrap up", or "create an MR":
+
+- **Single-Turn Unified Delivery:** Packages your staged diff, commit message, target branch, and suggested reviewers into **one single review screen**. One click on *(Recommended) Approve and execute all* executes commit, sync check, push, and MR creation in a single turn.
+- **Base Refresh & Conflict Gate:** Automatically checks if your branch is behind the base branch (`origin/develop`). If new commits were merged while you worked, it offers a clean `git rebase` or `git merge` and guides you through resolving conflicts locally **before** pushing, guaranteeing MRs merge green and pass CI.
+- **Smart Reviewers & Existing MR Updates:** Excludes yourself from reviewer candidates, suggests engineers who recently touched the specific files you modified, and updates existing open MRs without duplicate creation errors.
+- **Complete Wrap-Up:** Moves Jira to *In Review*, normalizes shorthand worklogs (e.g. `1.5h` → `1h 30m`), and outputs a clean structured closure report.
 
 **If the agent goes straight to fetching the ticket or writing code** without
 creating a branch, asking about scope/estimate/branch type, or moving the
