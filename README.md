@@ -90,7 +90,7 @@ Install JiraFlow for your preferred AI coding environment:
 
 - **Antigravity:** Copy the `jira-flow` directory to `%USERPROFILE%\.gemini\config\plugins\jira-flow` (Windows) or `~/.gemini/config/plugins/jira-flow` (macOS / Linux), or use the Plugins Manager UI.
 - **Kiro:** Powers panel → **Add power from Local Path** (or **Add power from GitHub** with `https://github.com/yf-tools/jira-flow.git`).
-- **Claude Code:** Load the full plugin directory with `claude --plugin-dir <path-to-jira-flow>`, or copy `skills/jira-create`, `skills/jira-pull`, and `skills/jira-push` into your global `~/.claude/skills/` (or `%USERPROFILE%\.claude\skills\` on Windows) or into your project's `.claude/skills/`.
+- **Claude Code:** Run `/plugin marketplace add yf-tools/jira-flow` then `/plugin install jira-flow@jira-flow`, or load with `claude --plugin-dir <path-to-jira-flow>`.
 - **Cursor:** In Settings → Plugins, click **Add plugins from folder** and select `jira-flow`, or copy to `%USERPROFILE%\.cursor\plugins\local\jira-flow`.
 - **Windsurf / VS Code:** Place `jira-flow` in your project root or reference `skills/jira-create/SKILL.md`, `skills/jira-pull/SKILL.md`, and `skills/jira-push/SKILL.md` in `.windsurfrules` or `AGENTS.md`.
 

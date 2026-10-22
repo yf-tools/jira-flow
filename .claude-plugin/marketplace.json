@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "jira-flow",
+  "description": "Standardized Jira ticket lifecycle workflows: jira-create, jira-pull, jira-push",
+  "owner": {
+    "name": "Youssef Fathalla"
+  },
+  "plugins": [
+    {
+      "name": "jira-flow",
+      "displayName": "Jira Flow",
+      "description": "Jira ticket lifecycle: jira-create, jira-pull, and jira-push.",
+      "version": "1.1.0",
+      "author": {
+        "name": "Youssef Fathalla"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/yf-tools/jira-flow"
+    }
+  ]
+}

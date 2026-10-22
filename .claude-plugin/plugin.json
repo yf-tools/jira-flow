@@ -1,0 +1,9 @@
+{
+  "name": "jira-flow",
+  "displayName": "Jira Flow",
+  "description": "Jira ticket lifecycle: jira-create, jira-pull, and jira-push.",
+  "author": {
+    "name": "Youssef Fathalla"
+  },
+  "skills": "./skills/"
+}

@@ -119,9 +119,13 @@ In Kiro's Powers panel:
 
 ### Option C: In Claude Code
 
-Load the entire plugin directory or copy the skills:
-
-- **Load directly (recommended):**
+- **Via Plugin Marketplace (Recommended):**
+  ```bash
+  # Inside Claude Code:
+  /plugin marketplace add yf-tools/jira-flow
+  /plugin install jira-flow@jira-flow
+  ```
+- **Load directly:**
   - Run with `claude --plugin-dir <path-to-jira-flow>`
 - **Global Skills Directory:**
   - Windows: `%USERPROFILE%\.claude\skills\` (copy `jira-create`, `jira-pull`, and `jira-push` folders)
