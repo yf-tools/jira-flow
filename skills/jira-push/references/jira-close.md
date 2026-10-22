@@ -22,6 +22,23 @@ Ask the user what duration to log (e.g. `1h 30m`), displaying current estimate a
 addWorklogToJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY}, timeSpent: "{duration}"
 ```
 
+### Sub-Task Worklog Fallback (Stories & Epics)
+
+If Jira returns a permission error when logging time directly to a `Story` (e.g. `"you do not have the permission to associate a worklog to this issue"`), or if project guidelines require time to be logged on sub-tasks:
+
+1. Create a child sub-task under the story:
+
+   ```text
+   createJiraIssue → cloudId: {resolved}, projectKey: "{PROJECT}", issueTypeName: "Sub-task",
+                     parent: "{TICKET-KEY}", summary: "{TICKET.summary} implementation",
+                     assignee_account_id: "{user.accountId}",
+                     additional_fields: { timetracking: { originalEstimate: "{duration}" } }
+   ```
+
+2. Log the worklog directly on the newly created sub-task.
+3. Transition the sub-task to match the parent's review status (`TO REVIEW` / `Ready to review`).
+4. Cross-link the MR URL on both the parent story and child sub-task.
+
 ## 3. Final Report Format
 
 Report closed status in a structured template rather than a run-on prose paragraph:

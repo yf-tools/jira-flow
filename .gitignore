@@ -3,6 +3,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 server.js.bak
-test.md
+updates.md
 *.draft.md
 *.notes.md

@@ -8,6 +8,7 @@ description: Ticket closing workflow — final checks, commit, push, and MR/PR c
 Follow this executive workflow when closing a ticket, wrapping up work, or opening an MR/PR.
 
 **Dry-Run / Test Mode:** Activated ONLY when the user explicitly includes the flag `--dry-run` or `--test-mode` (or phrases like `simulate only`). Never trigger on generic words like "test", "testing", or "write tests" so it never conflicts with regular testing or test-writing tasks:
+
 - Perform all read, review, staging checks, and reviewer lookup steps.
 - 🛑 **MANDATORY**: You MUST solicit user choice via the `ask_question` tool (or formatted chat options if `ask_question` is unavailable in your IDE) with clean, friendly choices. Do NOT skip the question step or print the summary prematurely.
 - Once the user answers the choices, do NOT perform any mutating actions (do not `git commit`, do not `git push`, do not `glab mr create`, do not transition Jira).
@@ -46,6 +47,7 @@ Verify the current branch matches the ticket key from the scan. Refuse detached 
 ### 2.2.1 — Run validation before the approval gate
 
 Run local validation before presenting anything for commit:
+
 - Diagnostics & narrowest type-check.
 - Narrowest relevant tests for changed behavior.
 - Lint and smoke tests.
@@ -57,6 +59,7 @@ If a pre-push hook runs a lengthy full build and the user opts for `--no-verify`
 ### 2.3 — Stage first, then review what will actually be committed
 
 Inspect and stage files deterministically:
+
 ```bash
 node "<this-skill-dir>/scripts/pre-push-check.mjs" --workspace "<repo-path>" --target {TARGET}
 ```
@@ -64,6 +67,7 @@ node "<this-skill-dir>/scripts/pre-push-check.mjs" --workspace "<repo-path>" --t
 > **Locating the script:** Resolve `pre-push-check.mjs` in the `scripts/` directory relative to this `SKILL.md` file (i.e. `<this-skill-dir>/scripts/pre-push-check.mjs`). Pass `--workspace` pointing to the target repository root.
 
 Stage specific files (never `git add .`):
+
 ```bash
 git fetch origin {TARGET}
 git diff --cached --stat
@@ -75,12 +79,14 @@ If review guidance or formatting edits modify files after this point, loop back 
 
 🛑 **Stop and present the unified delivery package with the validation evidence block.**
 Include:
+
 - Staged diff & validation evidence (`diagnostics, tests, lint, smoke, build`)
 - Proposed commit message (`{type}({TICKET-KEY}): description`)
 - Target branch (`{TARGET}`) & suggested reviewer (resolved via `reviewer-lookup.mjs --target {TARGET}`)
 - Base sync status (`behindTargetCount`)
 
 Use `ask_question` (or format clear choices in chat) to solicit approval in a single turn:
+
 1. `(Recommended) Approve and execute all (Commit, sync/push, create/update MR, move Jira to review)`
 2. `Commit and push only (skip MR creation)`
 3. `Modify files or edit details first`
@@ -122,16 +128,18 @@ Before pushing, inspect if new commits were merged into `{TARGET}` while this ti
 ## Step 4 — Push
 
 Push the current branch to origin:
+
 ```bash
 git push -u origin {branch}
 ```
+
 *(If the branch was rebased after having been previously pushed to remote, use `git push --force-with-lease origin {branch}` to push safely without overwriting remote changes).*
 If `--no-verify` was explicitly approved by the user, pass it privately to git push.
 
 ---
 
 ## Step 5 — Prepare & Open / Update Merge Request
- 
+
 1. **Check for Existing Open MR:**
    Before creating, inspect whether an MR/PR is already open for `{branch}`:
    - GitLab: `glab mr list --source-branch {branch}`
@@ -160,15 +168,41 @@ If `--no-verify` was explicitly approved by the user, pass it privately to git p
 
 Display current estimate and total time logged, then ask what duration to log.
 Normalize common shorthand inputs to Jira format:
+
 - `1.5h` → `1h 30m`
 - `90m` → `1h 30m`
 - `0.5d` → `4h`
 
 Once confirmed, execute:
+
 ```text
 addWorklogToJiraIssue → cloudId: {resolved}, issueIdOrKey: {TICKET-KEY}, timeSpent: "{duration}"
 ```
-*(If time tracking is disabled for this project, record as skipped without failing).*
+
+### Story / Permission Fallback (Sub-task Pattern)
+
+In Jira projects where permissions restrict logging work directly against parent Stories (`"you do not have the permission to associate a worklog to this issue"`), or where project convention mandates logging time on sub-tasks:
+
+1. Automatically create a child sub-task under `{TICKET-KEY}`:
+
+   ```text
+   createJiraIssue → cloudId: {resolved}, projectKey: "{PROJECT}", issueTypeName: "Sub-task",
+                     parent: "{TICKET-KEY}", summary: "{TICKET.summary} implementation",
+                     assignee_account_id: "{user.accountId}",
+                     additional_fields: { timetracking: { originalEstimate: "{duration}" } }
+   ```
+
+2. Log the worklog directly on the newly created sub-task:
+
+   ```text
+   addWorklogToJiraIssue → cloudId: {resolved}, issueIdOrKey: "{SUBTASK-KEY}", timeSpent: "{duration}"
+   ```
+
+3. Transition the sub-task to review status (e.g. `TO REVIEW` / `Ready to review`) matching the parent so board state stays in sync.
+4. Add comment to the sub-task linking to the MR.
+5. Report both the parent ticket and child sub-task in Step 8's closure report.
+
+*(If time tracking is disabled entirely for this project, record as skipped without failing).*
 
 ---
 
