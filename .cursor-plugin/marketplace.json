@@ -1,0 +1,13 @@
+{
+  "name": "jira-flow",
+  "owner": {
+    "name": "Youssef Fathalla"
+  },
+  "plugins": [
+    {
+      "name": "jira-flow",
+      "source": "./",
+      "description": "Jira ticket lifecycle: jira-create, jira-pull, and jira-push."
+    }
+  ]
+}

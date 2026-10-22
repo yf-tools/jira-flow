@@ -129,9 +129,20 @@ Load the entire plugin directory or copy the skills:
 - **Project-Specific Directory:**
   - Copy `skills/jira-create`, `skills/jira-pull`, and `skills/jira-push` into `.claude/skills/` within your project repository.
 
-### Option D: In Cursor / Windsurf / VS Code
+### Option D: In Cursor
 
-- Copy the `jira-flow` folder into your project root or reference `skills/jira-create/SKILL.md`, `skills/jira-pull/SKILL.md`, and `skills/jira-push/SKILL.md` from your `.cursorrules`, `.windsurfrules`, or `AGENTS.md`.
+- **Via Cursor UI (Recommended):**
+  1. Open Cursor **Settings** (`Ctrl+,` / `Cmd+,`) → navigate to **Features** → **Plugins** (or **Marketplaces**).
+  2. Click **Add plugins from folder** (or **Add Custom Marketplace**).
+  3. Select the `jira-flow` directory (`%USERPROFILE%\.gemini\config\plugins\jira-flow`).
+  4. Enable the plugin and reload the window (`Developer: Reload Window`).
+
+- **Via Local Plugins Directory:**
+  - Copy or symlink `jira-flow` to `%USERPROFILE%\.cursor\plugins\local\jira-flow` (Windows) or `~/.cursor/plugins/local/jira-flow` (macOS / Linux).
+
+### Option E: In Windsurf / VS Code
+
+- Copy the `jira-flow` folder into your project root or reference `skills/jira-create/SKILL.md`, `skills/jira-pull/SKILL.md`, and `skills/jira-push/SKILL.md` from your `.windsurfrules` or `AGENTS.md`.
 
 ---
 

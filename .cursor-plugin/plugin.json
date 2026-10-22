@@ -1,0 +1,12 @@
+{
+  "name": "jira-flow",
+  "displayName": "Jira Flow",
+  "version": "1.1.0",
+  "description": "Jira ticket lifecycle: jira-create, jira-pull, and jira-push.",
+  "author": {
+    "name": "Youssef Fathalla"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/yf-tools/jira-flow",
+  "skills": "./skills/"
+}
